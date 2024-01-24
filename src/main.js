@@ -1,7 +1,11 @@
-import {EditorView, basicSetup} from "codemirror";
-import {javascript} from "@codemirror/lang-javascript";
+import {EditorView, lineNumbers, highlightActiveLineGutter} from "@codemirror/view";
+import {EditorState} from "@codemirror/state";
 
 let editor = new EditorView({
-    extensions: [basicSetup, javascript()],
+    extensions: [
+        lineNumbers(),
+        highlightActiveLineGutter(),
+        EditorState.tabSize.of(4)
+    ],
     parent: document.body,
-})
+});
