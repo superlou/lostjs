@@ -6,6 +6,9 @@ import { defaultKeymap, history } from "@codemirror/commands";
 import { foldGutter, indentOnInput } from "@codemirror/language";
 import { loadFromLocalStorage, persistToLocalStorage } from "./localStorage";
 
+import { parser } from "../build/grammar"
+console.log(parser.parse("one 2 \"three\"").toString());
+
 let state = EditorState.create({
     doc: loadFromLocalStorage(),
     extensions: [
