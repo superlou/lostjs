@@ -1,11 +1,27 @@
-import {EditorView, lineNumbers, highlightActiveLineGutter} from "@codemirror/view";
-import {EditorState} from "@codemirror/state";
+import {
+    EditorView, keymap, lineNumbers, highlightActiveLineGutter, highlightActiveLine
+} from "@codemirror/view";
+import { EditorState } from "@codemirror/state";
+import { defaultKeymap, history } from "@codemirror/commands";
+import { foldGutter, indentOnInput } from "@codemirror/language";
+import { loadFromLocalStorage, persistToLocalStorage } from "./localStorage";
+
+let state = EditorState.create({
+    doc: loadFromLocalStorage(),
+    extensions: [
+        keymap.of(defaultKeymap),
+        lineNumbers(),
+        history(),
+        foldGutter(),
+        indentOnInput(),
+        highlightActiveLine(),
+        highlightActiveLineGutter(),
+        EditorState.tabSize.of(4),
+        persistToLocalStorage,
+    ],
+});
 
 let editor = new EditorView({
-    extensions: [
-        lineNumbers(),
-        highlightActiveLineGutter(),
-        EditorState.tabSize.of(4)
-    ],
+    state: state,
     parent: document.body,
 });
