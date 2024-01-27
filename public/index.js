@@ -12408,7 +12408,350 @@
        return handled;
    }
 
+   /**
+   Implementation of [`LayerMarker`](https://codemirror.net/6/docs/ref/#view.LayerMarker) that creates
+   a rectangle at a given set of coordinates.
+   */
+   class RectangleMarker {
+       /**
+       Create a marker with the given class and dimensions. If `width`
+       is null, the DOM element will get no width style.
+       */
+       constructor(className, 
+       /**
+       The left position of the marker (in pixels, document-relative).
+       */
+       left, 
+       /**
+       The top position of the marker.
+       */
+       top, 
+       /**
+       The width of the marker, or null if it shouldn't get a width assigned.
+       */
+       width, 
+       /**
+       The height of the marker.
+       */
+       height) {
+           this.className = className;
+           this.left = left;
+           this.top = top;
+           this.width = width;
+           this.height = height;
+       }
+       draw() {
+           let elt = document.createElement("div");
+           elt.className = this.className;
+           this.adjust(elt);
+           return elt;
+       }
+       update(elt, prev) {
+           if (prev.className != this.className)
+               return false;
+           this.adjust(elt);
+           return true;
+       }
+       adjust(elt) {
+           elt.style.left = this.left + "px";
+           elt.style.top = this.top + "px";
+           if (this.width != null)
+               elt.style.width = this.width + "px";
+           elt.style.height = this.height + "px";
+       }
+       eq(p) {
+           return this.left == p.left && this.top == p.top && this.width == p.width && this.height == p.height &&
+               this.className == p.className;
+       }
+       /**
+       Create a set of rectangles for the given selection range,
+       assigning them theclass`className`. Will create a single
+       rectangle for empty ranges, and a set of selection-style
+       rectangles covering the range's content (in a bidi-aware
+       way) for non-empty ones.
+       */
+       static forRange(view, className, range) {
+           if (range.empty) {
+               let pos = view.coordsAtPos(range.head, range.assoc || 1);
+               if (!pos)
+                   return [];
+               let base = getBase(view);
+               return [new RectangleMarker(className, pos.left - base.left, pos.top - base.top, null, pos.bottom - pos.top)];
+           }
+           else {
+               return rectanglesForRange(view, className, range);
+           }
+       }
+   }
+   function getBase(view) {
+       let rect = view.scrollDOM.getBoundingClientRect();
+       let left = view.textDirection == Direction.LTR ? rect.left : rect.right - view.scrollDOM.clientWidth * view.scaleX;
+       return { left: left - view.scrollDOM.scrollLeft * view.scaleX, top: rect.top - view.scrollDOM.scrollTop * view.scaleY };
+   }
+   function wrappedLine(view, pos, inside) {
+       let range = EditorSelection.cursor(pos);
+       return { from: Math.max(inside.from, view.moveToLineBoundary(range, false, true).from),
+           to: Math.min(inside.to, view.moveToLineBoundary(range, true, true).from),
+           type: BlockType.Text };
+   }
+   function rectanglesForRange(view, className, range) {
+       if (range.to <= view.viewport.from || range.from >= view.viewport.to)
+           return [];
+       let from = Math.max(range.from, view.viewport.from), to = Math.min(range.to, view.viewport.to);
+       let ltr = view.textDirection == Direction.LTR;
+       let content = view.contentDOM, contentRect = content.getBoundingClientRect(), base = getBase(view);
+       let lineElt = content.querySelector(".cm-line"), lineStyle = lineElt && window.getComputedStyle(lineElt);
+       let leftSide = contentRect.left +
+           (lineStyle ? parseInt(lineStyle.paddingLeft) + Math.min(0, parseInt(lineStyle.textIndent)) : 0);
+       let rightSide = contentRect.right - (lineStyle ? parseInt(lineStyle.paddingRight) : 0);
+       let startBlock = blockAt(view, from), endBlock = blockAt(view, to);
+       let visualStart = startBlock.type == BlockType.Text ? startBlock : null;
+       let visualEnd = endBlock.type == BlockType.Text ? endBlock : null;
+       if (visualStart && (view.lineWrapping || startBlock.widgetLineBreaks))
+           visualStart = wrappedLine(view, from, visualStart);
+       if (visualEnd && (view.lineWrapping || endBlock.widgetLineBreaks))
+           visualEnd = wrappedLine(view, to, visualEnd);
+       if (visualStart && visualEnd && visualStart.from == visualEnd.from) {
+           return pieces(drawForLine(range.from, range.to, visualStart));
+       }
+       else {
+           let top = visualStart ? drawForLine(range.from, null, visualStart) : drawForWidget(startBlock, false);
+           let bottom = visualEnd ? drawForLine(null, range.to, visualEnd) : drawForWidget(endBlock, true);
+           let between = [];
+           if ((visualStart || startBlock).to < (visualEnd || endBlock).from - (visualStart && visualEnd ? 1 : 0) ||
+               startBlock.widgetLineBreaks > 1 && top.bottom + view.defaultLineHeight / 2 < bottom.top)
+               between.push(piece(leftSide, top.bottom, rightSide, bottom.top));
+           else if (top.bottom < bottom.top && view.elementAtHeight((top.bottom + bottom.top) / 2).type == BlockType.Text)
+               top.bottom = bottom.top = (top.bottom + bottom.top) / 2;
+           return pieces(top).concat(between).concat(pieces(bottom));
+       }
+       function piece(left, top, right, bottom) {
+           return new RectangleMarker(className, left - base.left, top - base.top - 0.01 /* C.Epsilon */, right - left, bottom - top + 0.01 /* C.Epsilon */);
+       }
+       function pieces({ top, bottom, horizontal }) {
+           let pieces = [];
+           for (let i = 0; i < horizontal.length; i += 2)
+               pieces.push(piece(horizontal[i], top, horizontal[i + 1], bottom));
+           return pieces;
+       }
+       // Gets passed from/to in line-local positions
+       function drawForLine(from, to, line) {
+           let top = 1e9, bottom = -1e9, horizontal = [];
+           function addSpan(from, fromOpen, to, toOpen, dir) {
+               // Passing 2/-2 is a kludge to force the view to return
+               // coordinates on the proper side of block widgets, since
+               // normalizing the side there, though appropriate for most
+               // coordsAtPos queries, would break selection drawing.
+               let fromCoords = view.coordsAtPos(from, (from == line.to ? -2 : 2));
+               let toCoords = view.coordsAtPos(to, (to == line.from ? 2 : -2));
+               if (!fromCoords || !toCoords)
+                   return;
+               top = Math.min(fromCoords.top, toCoords.top, top);
+               bottom = Math.max(fromCoords.bottom, toCoords.bottom, bottom);
+               if (dir == Direction.LTR)
+                   horizontal.push(ltr && fromOpen ? leftSide : fromCoords.left, ltr && toOpen ? rightSide : toCoords.right);
+               else
+                   horizontal.push(!ltr && toOpen ? leftSide : toCoords.left, !ltr && fromOpen ? rightSide : fromCoords.right);
+           }
+           let start = from !== null && from !== void 0 ? from : line.from, end = to !== null && to !== void 0 ? to : line.to;
+           // Split the range by visible range and document line
+           for (let r of view.visibleRanges)
+               if (r.to > start && r.from < end) {
+                   for (let pos = Math.max(r.from, start), endPos = Math.min(r.to, end);;) {
+                       let docLine = view.state.doc.lineAt(pos);
+                       for (let span of view.bidiSpans(docLine)) {
+                           let spanFrom = span.from + docLine.from, spanTo = span.to + docLine.from;
+                           if (spanFrom >= endPos)
+                               break;
+                           if (spanTo > pos)
+                               addSpan(Math.max(spanFrom, pos), from == null && spanFrom <= start, Math.min(spanTo, endPos), to == null && spanTo >= end, span.dir);
+                       }
+                       pos = docLine.to + 1;
+                       if (pos >= endPos)
+                           break;
+                   }
+               }
+           if (horizontal.length == 0)
+               addSpan(start, from == null, end, to == null, view.textDirection);
+           return { top, bottom, horizontal };
+       }
+       function drawForWidget(block, top) {
+           let y = contentRect.top + (top ? block.top : block.bottom);
+           return { top: y, bottom: y, horizontal: [] };
+       }
+   }
+   function sameMarker(a, b) {
+       return a.constructor == b.constructor && a.eq(b);
+   }
+   class LayerView {
+       constructor(view, layer) {
+           this.view = view;
+           this.layer = layer;
+           this.drawn = [];
+           this.scaleX = 1;
+           this.scaleY = 1;
+           this.measureReq = { read: this.measure.bind(this), write: this.draw.bind(this) };
+           this.dom = view.scrollDOM.appendChild(document.createElement("div"));
+           this.dom.classList.add("cm-layer");
+           if (layer.above)
+               this.dom.classList.add("cm-layer-above");
+           if (layer.class)
+               this.dom.classList.add(layer.class);
+           this.scale();
+           this.dom.setAttribute("aria-hidden", "true");
+           this.setOrder(view.state);
+           view.requestMeasure(this.measureReq);
+           if (layer.mount)
+               layer.mount(this.dom, view);
+       }
+       update(update) {
+           if (update.startState.facet(layerOrder) != update.state.facet(layerOrder))
+               this.setOrder(update.state);
+           if (this.layer.update(update, this.dom) || update.geometryChanged) {
+               this.scale();
+               update.view.requestMeasure(this.measureReq);
+           }
+       }
+       setOrder(state) {
+           let pos = 0, order = state.facet(layerOrder);
+           while (pos < order.length && order[pos] != this.layer)
+               pos++;
+           this.dom.style.zIndex = String((this.layer.above ? 150 : -1) - pos);
+       }
+       measure() {
+           return this.layer.markers(this.view);
+       }
+       scale() {
+           let { scaleX, scaleY } = this.view;
+           if (scaleX != this.scaleX || scaleY != this.scaleY) {
+               this.scaleX = scaleX;
+               this.scaleY = scaleY;
+               this.dom.style.transform = `scale(${1 / scaleX}, ${1 / scaleY})`;
+           }
+       }
+       draw(markers) {
+           if (markers.length != this.drawn.length || markers.some((p, i) => !sameMarker(p, this.drawn[i]))) {
+               let old = this.dom.firstChild, oldI = 0;
+               for (let marker of markers) {
+                   if (marker.update && old && marker.constructor && this.drawn[oldI].constructor &&
+                       marker.update(old, this.drawn[oldI])) {
+                       old = old.nextSibling;
+                       oldI++;
+                   }
+                   else {
+                       this.dom.insertBefore(marker.draw(), old);
+                   }
+               }
+               while (old) {
+                   let next = old.nextSibling;
+                   old.remove();
+                   old = next;
+               }
+               this.drawn = markers;
+           }
+       }
+       destroy() {
+           if (this.layer.destroy)
+               this.layer.destroy(this.dom, this.view);
+           this.dom.remove();
+       }
+   }
+   const layerOrder = /*@__PURE__*/Facet.define();
+   /**
+   Define a layer.
+   */
+   function layer(config) {
+       return [
+           ViewPlugin.define(v => new LayerView(v, config)),
+           layerOrder.of(config)
+       ];
+   }
+
    const CanHidePrimary = !browser.ios; // FIXME test IE
+   const selectionConfig = /*@__PURE__*/Facet.define({
+       combine(configs) {
+           return combineConfig(configs, {
+               cursorBlinkRate: 1200,
+               drawRangeCursor: true
+           }, {
+               cursorBlinkRate: (a, b) => Math.min(a, b),
+               drawRangeCursor: (a, b) => a || b
+           });
+       }
+   });
+   /**
+   Returns an extension that hides the browser's native selection and
+   cursor, replacing the selection with a background behind the text
+   (with the `cm-selectionBackground` class), and the
+   cursors with elements overlaid over the code (using
+   `cm-cursor-primary` and `cm-cursor-secondary`).
+
+   This allows the editor to display secondary selection ranges, and
+   tends to produce a type of selection more in line with that users
+   expect in a text editor (the native selection styling will often
+   leave gaps between lines and won't fill the horizontal space after
+   a line when the selection continues past it).
+
+   It does have a performance cost, in that it requires an extra DOM
+   layout cycle for many updates (the selection is drawn based on DOM
+   layout information that's only available after laying out the
+   content).
+   */
+   function drawSelection(config = {}) {
+       return [
+           selectionConfig.of(config),
+           cursorLayer,
+           selectionLayer,
+           hideNativeSelection,
+           nativeSelectionHidden.of(true)
+       ];
+   }
+   function configChanged(update) {
+       return update.startState.facet(selectionConfig) != update.state.facet(selectionConfig);
+   }
+   const cursorLayer = /*@__PURE__*/layer({
+       above: true,
+       markers(view) {
+           let { state } = view, conf = state.facet(selectionConfig);
+           let cursors = [];
+           for (let r of state.selection.ranges) {
+               let prim = r == state.selection.main;
+               if (r.empty ? !prim || CanHidePrimary : conf.drawRangeCursor) {
+                   let className = prim ? "cm-cursor cm-cursor-primary" : "cm-cursor cm-cursor-secondary";
+                   let cursor = r.empty ? r : EditorSelection.cursor(r.head, r.head > r.anchor ? -1 : 1);
+                   for (let piece of RectangleMarker.forRange(view, className, cursor))
+                       cursors.push(piece);
+               }
+           }
+           return cursors;
+       },
+       update(update, dom) {
+           if (update.transactions.some(tr => tr.selection))
+               dom.style.animationName = dom.style.animationName == "cm-blink" ? "cm-blink2" : "cm-blink";
+           let confChange = configChanged(update);
+           if (confChange)
+               setBlinkRate(update.state, dom);
+           return update.docChanged || update.selectionSet || confChange;
+       },
+       mount(dom, view) {
+           setBlinkRate(view.state, dom);
+       },
+       class: "cm-cursorLayer"
+   });
+   function setBlinkRate(state, dom) {
+       dom.style.animationDuration = state.facet(selectionConfig).cursorBlinkRate + "ms";
+   }
+   const selectionLayer = /*@__PURE__*/layer({
+       above: false,
+       markers(view) {
+           return view.state.selection.ranges.map(r => r.empty ? [] : RectangleMarker.forRange(view, "cm-selectionBackground", r))
+               .reduce((a, b) => a.concat(b));
+       },
+       update(update, dom) {
+           return update.docChanged || update.selectionSet || update.viewportChanged || configChanged(update);
+       },
+       class: "cm-selectionLayer"
+   });
    const themeSpec = {
        ".cm-line": {
            "& ::selection": { backgroundColor: "transparent !important" },
@@ -12419,6 +12762,7 @@
        themeSpec[".cm-line"].caretColor = "transparent !important";
        themeSpec[".cm-content"] = { caretColor: "transparent !important" };
    }
+   const hideNativeSelection = /*@__PURE__*/Prec.highest(/*@__PURE__*/EditorView.theme(themeSpec));
 
    /**
    Mark lines that have a cursor on them with the `"cm-activeLine"`
@@ -14885,6 +15229,132 @@
            scope
        };
    }
+   function highlightTags(highlighters, tags) {
+       let result = null;
+       for (let highlighter of highlighters) {
+           let value = highlighter.style(tags);
+           if (value)
+               result = result ? result + " " + value : value;
+       }
+       return result;
+   }
+   /**
+   Highlight the given [tree](#common.Tree) with the given
+   [highlighter](#highlight.Highlighter). Often, the higher-level
+   [`highlightCode`](#highlight.highlightCode) function is easier to
+   use.
+   */
+   function highlightTree(tree, highlighter, 
+   /**
+   Assign styling to a region of the text. Will be called, in order
+   of position, for any ranges where more than zero classes apply.
+   `classes` is a space separated string of CSS classes.
+   */
+   putStyle, 
+   /**
+   The start of the range to highlight.
+   */
+   from = 0, 
+   /**
+   The end of the range.
+   */
+   to = tree.length) {
+       let builder = new HighlightBuilder(from, Array.isArray(highlighter) ? highlighter : [highlighter], putStyle);
+       builder.highlightRange(tree.cursor(), from, to, "", builder.highlighters);
+       builder.flush(to);
+   }
+   class HighlightBuilder {
+       constructor(at, highlighters, span) {
+           this.at = at;
+           this.highlighters = highlighters;
+           this.span = span;
+           this.class = "";
+       }
+       startSpan(at, cls) {
+           if (cls != this.class) {
+               this.flush(at);
+               if (at > this.at)
+                   this.at = at;
+               this.class = cls;
+           }
+       }
+       flush(to) {
+           if (to > this.at && this.class)
+               this.span(this.at, to, this.class);
+       }
+       highlightRange(cursor, from, to, inheritedClass, highlighters) {
+           let { type, from: start, to: end } = cursor;
+           if (start >= to || end <= from)
+               return;
+           if (type.isTop)
+               highlighters = this.highlighters.filter(h => !h.scope || h.scope(type));
+           let cls = inheritedClass;
+           let rule = getStyleTags(cursor) || Rule.empty;
+           let tagCls = highlightTags(highlighters, rule.tags);
+           if (tagCls) {
+               if (cls)
+                   cls += " ";
+               cls += tagCls;
+               if (rule.mode == 1 /* Mode.Inherit */)
+                   inheritedClass += (inheritedClass ? " " : "") + tagCls;
+           }
+           this.startSpan(Math.max(from, start), cls);
+           if (rule.opaque)
+               return;
+           let mounted = cursor.tree && cursor.tree.prop(NodeProp.mounted);
+           if (mounted && mounted.overlay) {
+               let inner = cursor.node.enter(mounted.overlay[0].from + start, 1);
+               let innerHighlighters = this.highlighters.filter(h => !h.scope || h.scope(mounted.tree.type));
+               let hasChild = cursor.firstChild();
+               for (let i = 0, pos = start;; i++) {
+                   let next = i < mounted.overlay.length ? mounted.overlay[i] : null;
+                   let nextPos = next ? next.from + start : end;
+                   let rangeFrom = Math.max(from, pos), rangeTo = Math.min(to, nextPos);
+                   if (rangeFrom < rangeTo && hasChild) {
+                       while (cursor.from < rangeTo) {
+                           this.highlightRange(cursor, rangeFrom, rangeTo, inheritedClass, highlighters);
+                           this.startSpan(Math.min(rangeTo, cursor.to), cls);
+                           if (cursor.to >= nextPos || !cursor.nextSibling())
+                               break;
+                       }
+                   }
+                   if (!next || nextPos > to)
+                       break;
+                   pos = next.to + start;
+                   if (pos > from) {
+                       this.highlightRange(inner.cursor(), Math.max(from, next.from + start), Math.min(to, pos), "", innerHighlighters);
+                       this.startSpan(Math.min(to, pos), cls);
+                   }
+               }
+               if (hasChild)
+                   cursor.parent();
+           }
+           else if (cursor.firstChild()) {
+               if (mounted)
+                   inheritedClass = "";
+               do {
+                   if (cursor.to <= from)
+                       continue;
+                   if (cursor.from >= to)
+                       break;
+                   this.highlightRange(cursor, from, to, inheritedClass, highlighters);
+                   this.startSpan(Math.min(to, cursor.to), cls);
+               } while (cursor.nextSibling());
+               cursor.parent();
+           }
+       }
+   }
+   /**
+   Match a syntax node's [highlight rules](#highlight.styleTags). If
+   there's a match, return its set of tags, and whether it is
+   opaque (uses a `!`) or applies to all child nodes (`/...`).
+   */
+   function getStyleTags(node) {
+       let rule = node.type.prop(ruleNodeProp);
+       while (rule && rule.context && !node.matchContext(rule.context))
+           rule = rule.next;
+       return rule || null;
+   }
    const t = Tag.define;
    const comment = t(), name = t(), typeName = t(name), propertyName = t(name), literal = t(), string = t(literal), number = t(literal), content = t(), heading = t(content), keyword = t(), operator = t(), punctuation = t(), bracket = t(punctuation), meta = t();
    /**
@@ -15361,6 +15831,19 @@
    */
    const languageDataProp = /*@__PURE__*/new NodeProp();
    /**
+   Helper function to define a facet (to be added to the top syntax
+   node(s) for a language via
+   [`languageDataProp`](https://codemirror.net/6/docs/ref/#language.languageDataProp)), that will be
+   used to associate language data with the language. You
+   probably only need this when subclassing
+   [`Language`](https://codemirror.net/6/docs/ref/#language.Language).
+   */
+   function defineLanguageFacet(baseData) {
+       return Facet.define({
+           combine: baseData ? values => values.concat(baseData) : undefined
+       });
+   }
+   /**
    Syntax node prop used to register sublanguages. Should be added to
    the top level node type for the language.
    */
@@ -15486,6 +15969,34 @@
                    tree = node;
        }
        return tree;
+   }
+   /**
+   A subclass of [`Language`](https://codemirror.net/6/docs/ref/#language.Language) for use with Lezer
+   [LR parsers](https://lezer.codemirror.net/docs/ref#lr.LRParser)
+   parsers.
+   */
+   class LRLanguage extends Language {
+       constructor(data, parser, name) {
+           super(data, parser, [], name);
+           this.parser = parser;
+       }
+       /**
+       Define a language from a parser.
+       */
+       static define(spec) {
+           let data = defineLanguageFacet(spec.languageData);
+           return new LRLanguage(data, spec.parser.configure({
+               props: [languageDataProp.add(type => type.isTop ? data : undefined)]
+           }), spec.name);
+       }
+       /**
+       Create a new instance of this language with a reconfigured
+       version of its parser and optionally a new name.
+       */
+       configure(options, name) {
+           return new LRLanguage(this.data, this.parser.configure(options), name || this.name);
+       }
+       get allowsNesting() { return this.parser.hasWrappers(); }
    }
    /**
    Get the syntax tree for a state, which is the current (possibly
@@ -15920,6 +16431,34 @@
            })
        ]
    });
+   /**
+   This class bundles a [language](https://codemirror.net/6/docs/ref/#language.Language) with an
+   optional set of supporting extensions. Language packages are
+   encouraged to export a function that optionally takes a
+   configuration object and returns a `LanguageSupport` instance, as
+   the main way for client code to use the package.
+   */
+   class LanguageSupport {
+       /**
+       Create a language support object.
+       */
+       constructor(
+       /**
+       The language object.
+       */
+       language, 
+       /**
+       An optional set of supporting extensions. When nesting a
+       language in another language, the outer language is encouraged
+       to include the supporting extensions for its inner languages
+       in its own set of support extensions.
+       */
+       support = []) {
+           this.language = language;
+           this.support = support;
+           this.extension = [language, support];
+       }
+   }
 
    /**
    Facet that defines a way to provide a function that computes the
@@ -16298,6 +16837,15 @@
    when it is.
    */
    const foldNodeProp = /*@__PURE__*/new NodeProp();
+   /**
+   [Fold](https://codemirror.net/6/docs/ref/#language.foldNodeProp) function that folds everything but
+   the first and the last child of a syntax node. Useful for nodes
+   that start and end with delimiters.
+   */
+   function foldInside(node) {
+       let first = node.firstChild, last = node.lastChild;
+       return first && first.to < last.from ? { from: first.to, to: last.type.isError ? node.to : last.from } : null;
+   }
    function syntaxFolding(state, start, end) {
        let tree = syntaxTree(state);
        if (tree.length < end)
@@ -16573,6 +17121,164 @@
            cursor: "pointer"
        }
    });
+
+   /**
+   A highlight style associates CSS styles with higlighting
+   [tags](https://lezer.codemirror.net/docs/ref#highlight.Tag).
+   */
+   class HighlightStyle {
+       constructor(
+       /**
+       The tag styles used to create this highlight style.
+       */
+       specs, options) {
+           this.specs = specs;
+           let modSpec;
+           function def(spec) {
+               let cls = StyleModule.newName();
+               (modSpec || (modSpec = Object.create(null)))["." + cls] = spec;
+               return cls;
+           }
+           const all = typeof options.all == "string" ? options.all : options.all ? def(options.all) : undefined;
+           const scopeOpt = options.scope;
+           this.scope = scopeOpt instanceof Language ? (type) => type.prop(languageDataProp) == scopeOpt.data
+               : scopeOpt ? (type) => type == scopeOpt : undefined;
+           this.style = tagHighlighter(specs.map(style => ({
+               tag: style.tag,
+               class: style.class || def(Object.assign({}, style, { tag: null }))
+           })), {
+               all,
+           }).style;
+           this.module = modSpec ? new StyleModule(modSpec) : null;
+           this.themeType = options.themeType;
+       }
+       /**
+       Create a highlighter style that associates the given styles to
+       the given tags. The specs must be objects that hold a style tag
+       or array of tags in their `tag` property, and either a single
+       `class` property providing a static CSS class (for highlighter
+       that rely on external styling), or a
+       [`style-mod`](https://github.com/marijnh/style-mod#documentation)-style
+       set of CSS properties (which define the styling for those tags).
+       
+       The CSS rules created for a highlighter will be emitted in the
+       order of the spec's properties. That means that for elements that
+       have multiple tags associated with them, styles defined further
+       down in the list will have a higher CSS precedence than styles
+       defined earlier.
+       */
+       static define(specs, options) {
+           return new HighlightStyle(specs, options || {});
+       }
+   }
+   const highlighterFacet = /*@__PURE__*/Facet.define();
+   const fallbackHighlighter = /*@__PURE__*/Facet.define({
+       combine(values) { return values.length ? [values[0]] : null; }
+   });
+   function getHighlighters(state) {
+       let main = state.facet(highlighterFacet);
+       return main.length ? main : state.facet(fallbackHighlighter);
+   }
+   /**
+   Wrap a highlighter in an editor extension that uses it to apply
+   syntax highlighting to the editor content.
+
+   When multiple (non-fallback) styles are provided, the styling
+   applied is the union of the classes they emit.
+   */
+   function syntaxHighlighting(highlighter, options) {
+       let ext = [treeHighlighter], themeType;
+       if (highlighter instanceof HighlightStyle) {
+           if (highlighter.module)
+               ext.push(EditorView.styleModule.of(highlighter.module));
+           themeType = highlighter.themeType;
+       }
+       if (options === null || options === void 0 ? void 0 : options.fallback)
+           ext.push(fallbackHighlighter.of(highlighter));
+       else if (themeType)
+           ext.push(highlighterFacet.computeN([EditorView.darkTheme], state => {
+               return state.facet(EditorView.darkTheme) == (themeType == "dark") ? [highlighter] : [];
+           }));
+       else
+           ext.push(highlighterFacet.of(highlighter));
+       return ext;
+   }
+   class TreeHighlighter {
+       constructor(view) {
+           this.markCache = Object.create(null);
+           this.tree = syntaxTree(view.state);
+           this.decorations = this.buildDeco(view, getHighlighters(view.state));
+       }
+       update(update) {
+           let tree = syntaxTree(update.state), highlighters = getHighlighters(update.state);
+           let styleChange = highlighters != getHighlighters(update.startState);
+           if (tree.length < update.view.viewport.to && !styleChange && tree.type == this.tree.type) {
+               this.decorations = this.decorations.map(update.changes);
+           }
+           else if (tree != this.tree || update.viewportChanged || styleChange) {
+               this.tree = tree;
+               this.decorations = this.buildDeco(update.view, highlighters);
+           }
+       }
+       buildDeco(view, highlighters) {
+           if (!highlighters || !this.tree.length)
+               return Decoration.none;
+           let builder = new RangeSetBuilder();
+           for (let { from, to } of view.visibleRanges) {
+               highlightTree(this.tree, highlighters, (from, to, style) => {
+                   builder.add(from, to, this.markCache[style] || (this.markCache[style] = Decoration.mark({ class: style })));
+               }, from, to);
+           }
+           return builder.finish();
+       }
+   }
+   const treeHighlighter = /*@__PURE__*/Prec.high(/*@__PURE__*/ViewPlugin.fromClass(TreeHighlighter, {
+       decorations: v => v.decorations
+   }));
+   /**
+   A default highlight style (works well with light themes).
+   */
+   const defaultHighlightStyle = /*@__PURE__*/HighlightStyle.define([
+       { tag: tags.meta,
+           color: "#404740" },
+       { tag: tags.link,
+           textDecoration: "underline" },
+       { tag: tags.heading,
+           textDecoration: "underline",
+           fontWeight: "bold" },
+       { tag: tags.emphasis,
+           fontStyle: "italic" },
+       { tag: tags.strong,
+           fontWeight: "bold" },
+       { tag: tags.strikethrough,
+           textDecoration: "line-through" },
+       { tag: tags.keyword,
+           color: "#708" },
+       { tag: [tags.atom, tags.bool, tags.url, tags.contentSeparator, tags.labelName],
+           color: "#219" },
+       { tag: [tags.literal, tags.inserted],
+           color: "#164" },
+       { tag: [tags.string, tags.deleted],
+           color: "#a11" },
+       { tag: [tags.regexp, tags.escape, /*@__PURE__*/tags.special(tags.string)],
+           color: "#e40" },
+       { tag: /*@__PURE__*/tags.definition(tags.variableName),
+           color: "#00f" },
+       { tag: /*@__PURE__*/tags.local(tags.variableName),
+           color: "#30a" },
+       { tag: [tags.typeName, tags.namespace],
+           color: "#085" },
+       { tag: tags.className,
+           color: "#167" },
+       { tag: [/*@__PURE__*/tags.special(tags.variableName), tags.macroName],
+           color: "#256" },
+       { tag: /*@__PURE__*/tags.definition(tags.propertyName),
+           color: "#00c" },
+       { tag: tags.comment,
+           color: "#940" },
+       { tag: tags.invalid,
+           color: "#f00" }
+   ]);
    const DefaultScanDist = 10000, DefaultBrackets = "()[]{}";
    /**
    When larger syntax nodes, such as HTML tags, are marked as
@@ -19929,20 +20635,100 @@
    // This file was generated by lezer-generator. You probably shouldn't edit it.
    const parser = LRParser.deserialize({
      version: 14,
-     states: "hOVQPOOOOQO'#Ca'#CaQVQPOOOOQO-E6_-E6_",
-     stateData: "b~OWOS~OQPORPOSPO~O",
-     goto: "]UPPPPPVQQORRQ",
-     nodeNames: "⚠ File Identifier Number String",
-     maxTerm: 8,
-     skippedNodes: [0],
+     states: "!WQYQPOOOhQPO'#CdOOQO'#Ci'#CiOOQO'#Ce'#CeQYQPOOOOQO,59O,59OOyQPO,59OOOQO-E6c-E6cOOQO1G.j1G.j",
+     stateData: "![~O[OSPOS~ORQOSQOTQOVPO~ORQOSQOTQOUTOVPO~ORQOSQOTQOUWOVPO~O",
+     goto: "u^PPPPPPPP_ePPPoXQOPSUQSOQUPTVSUXROPSU",
+     nodeNames: "⚠ LineComment Program Identifier String Boolean ) ( Application",
+     maxTerm: 13,
+     nodeProps: [
+       ["openedBy", 6,"("],
+       ["closedBy", 7,")"]
+     ],
+     skippedNodes: [0,1],
      repeatNodeCount: 1,
-     tokenData: "#z~R_X^!Qpq!Qrs!u!Q![#d!c!}#l#R#S#l#T#o#l#y#z!Q$f$g!Q#BY#BZ!Q$IS$I_!Q$I|$JO!Q$JT$JU!Q$KV$KW!Q&FU&FV!Q~!VYW~X^!Qpq!Q#y#z!Q$f$g!Q#BY#BZ!Q$IS$I_!Q$I|$JO!Q$JT$JU!Q$KV$KW!Q&FU&FV!Q~!xTOr!urs#Xs;'S!u;'S;=`#^<%lO!u~#^OS~~#aP;=`<%l!u~#iPR~!Q![#d~#qRQ~!c!}#l#R#S#l#T#o#l",
+     tokenData: "%c~R^XY}YZ}]^}pq}rs!`st#|xy$[yz$a}!O$f!Q![$f!]!^$z!c!}$f#R#S$f#T#o$f~!SS[~XY}YZ}]^}pq}~!cVOr!`rs!xs#O!`#O#P!}#P;'S!`;'S;=`#v<%lO!`~!}OS~~#QRO;'S!`;'S;=`#Z;=`O!`~#^WOr!`rs!xs#O!`#O#P!}#P;'S!`;'S;=`#v;=`<%l!`<%lO!`~#yP;=`<%l!`~$PQ#Y#Z$V#h#i$V~$[OT~~$aOV~~$fOU~~$kTR~}!O$f!Q![$f!c!}$f#R#S$f#T#o$f~%PSP~OY$zZ;'S$z;'S;=`%]<%lO$z~%`P;=`<%l$z",
      tokenizers: [0],
-     topRules: {"File":[0,1]},
+     topRules: {"Program":[0,2]},
      tokenPrec: 0
    });
 
-   console.log(parser.parse("one 2 \"three\"").toString());
+   function toSet(chars) {
+       let flat = Object.keys(chars).join("");
+       let words = /\w/.test(flat);
+       if (words)
+           flat = flat.replace(/\w/g, "");
+       return `[${words ? "\\w" : ""}${flat.replace(/[^\w\s]/g, "\\$&")}]`;
+   }
+   function prefixMatch(options) {
+       let first = Object.create(null), rest = Object.create(null);
+       for (let { label } of options) {
+           first[label[0]] = true;
+           for (let i = 1; i < label.length; i++)
+               rest[label[i]] = true;
+       }
+       let source = toSet(first) + toSet(rest) + "*$";
+       return [new RegExp("^" + source), new RegExp(source)];
+   }
+   /**
+   Given a a fixed array of options, return an autocompleter that
+   completes them.
+   */
+   function completeFromList(list) {
+       let options = list.map(o => typeof o == "string" ? { label: o } : o);
+       let [validFor, match] = options.every(o => /^\w+$/.test(o.label)) ? [/\w*$/, /\w+$/] : prefixMatch(options);
+       return (context) => {
+           let token = context.matchBefore(match);
+           return token || context.explicit ? { from: token ? token.from : context.pos, options, validFor } : null;
+       };
+   }
+   const closedBracket = /*@__PURE__*/new class extends RangeValue {
+   };
+   closedBracket.startSide = 1;
+   closedBracket.endSide = -1;
+
+   let parserWithMetadata = parser.configure({
+       props: [
+           styleTags({
+               Identifier: tags.variableName,
+               Boolean: tags.bool,
+               String: tags.string,
+               LineComment: tags.lineComment,
+               "( )": tags.paren,
+           }),
+           indentNodeProp.add({
+               Application: context => context.column(context.node.from) + context.unit
+           }),
+           foldNodeProp.add({
+               Application: foldInside
+           }),
+       ]
+   });
+
+   const lostLanguage = LRLanguage.define({
+       parser: parserWithMetadata,
+       languageData: {
+           commentTokens: {line: ";"}
+       }
+   });
+
+   const lostCompletion = lostLanguage.data.of({
+       autocomplete: completeFromList([
+           {label: "defun", type: "keyword"},
+           {label: "defvar", type: "keyword"},
+           {label: "let", type: "keyword"},
+           {label: "cons", type: "function"},
+           {label: "car", type: "function"},
+           {label: "cdr", type: "function"},
+       ]),
+   });
+
+   function lost() {
+       return new LanguageSupport(lostLanguage, [lostCompletion]);
+   }
+
+   console.log(parser.parse(
+       loadFromLocalStorage()
+   ).toString());
 
    let state = EditorState.create({
        doc: loadFromLocalStorage(),
@@ -19956,6 +20742,9 @@
            highlightActiveLineGutter(),
            EditorState.tabSize.of(4),
            persistToLocalStorage,
+           drawSelection(),
+           syntaxHighlighting(defaultHighlightStyle),
+           lost(),
        ],
    });
 

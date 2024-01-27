@@ -19,6 +19,7 @@
     "rollup": "^4.9.6"
   },
   "dependencies": {
+    "@codemirror/autocomplete": "^6.12.0",
     "@codemirror/commands": "^6.3.3",
     "@codemirror/language": "^6.10.0",
     "@codemirror/state": "^6.4.0",

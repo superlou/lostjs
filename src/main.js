@@ -1,13 +1,18 @@
 import {
-    EditorView, keymap, lineNumbers, highlightActiveLineGutter, highlightActiveLine
+    EditorView, keymap, lineNumbers, highlightActiveLineGutter, highlightActiveLine,
+    drawSelection,
 } from "@codemirror/view";
 import { EditorState } from "@codemirror/state";
 import { defaultKeymap, history } from "@codemirror/commands";
-import { foldGutter, indentOnInput } from "@codemirror/language";
+import { foldGutter, indentOnInput, defaultHighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { loadFromLocalStorage, persistToLocalStorage } from "./localStorage";
+import { lost } from "./lost-lang";
 
 import { parser } from "../build/grammar"
-console.log(parser.parse("one 2 \"three\"").toString());
+
+console.log(parser.parse(
+    loadFromLocalStorage()
+).toString());
 
 let state = EditorState.create({
     doc: loadFromLocalStorage(),
@@ -21,6 +26,9 @@ let state = EditorState.create({
         highlightActiveLineGutter(),
         EditorState.tabSize.of(4),
         persistToLocalStorage,
+        drawSelection(),
+        syntaxHighlighting(defaultHighlightStyle),
+        lost(),
     ],
 });
 
