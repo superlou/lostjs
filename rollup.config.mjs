@@ -2,7 +2,7 @@ import {nodeResolve} from "@rollup/plugin-node-resolve";
 import {lezer} from "@lezer/generator/rollup";
 
 export default [{
-    input: "src/my.grammar",
+    input: "src/lost.grammar",
     output: {
         file: "build/grammar.js",
         format: "es",

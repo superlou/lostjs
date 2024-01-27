@@ -5,7 +5,7 @@ import {
 import { EditorState } from "@codemirror/state";
 import { defaultKeymap, history } from "@codemirror/commands";
 import { foldGutter, indentOnInput, defaultHighlightStyle, syntaxHighlighting } from "@codemirror/language";
-import { loadFromLocalStorage, persistToLocalStorage } from "./localStorage";
+import { loadFromLocalStorage, persistToLocalStorage } from "./local-storage";
 import { lost } from "./lost-lang";
 
 import { parser } from "../build/grammar"
