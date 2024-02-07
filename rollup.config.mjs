@@ -1,5 +1,6 @@
-import {nodeResolve} from "@rollup/plugin-node-resolve";
-import {lezer} from "@lezer/generator/rollup";
+import { nodeResolve } from "@rollup/plugin-node-resolve";
+import typescript from "@rollup/plugin-typescript";
+import { lezer } from "@lezer/generator/rollup";
 
 export default [{
     input: "src/lost.grammar",
@@ -15,5 +16,5 @@ export default [{
         file: "public/index.js",
         format: "iife"
     },
-    plugins: [nodeResolve()],
+    plugins: [nodeResolve(), typescript()],
 }]

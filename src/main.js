@@ -6,16 +6,17 @@ import { EditorState } from "@codemirror/state";
 import { defaultKeymap, history } from "@codemirror/commands";
 import { foldGutter, indentOnInput, defaultHighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { loadFromLocalStorage, persistToLocalStorage } from "./local-storage";
+import { logTree } from "./print-lezer-tree";
 import { lost } from "./lost-lang";
 
 import { parser } from "../build/grammar"
 
-console.log(parser.parse(
-    loadFromLocalStorage()
-).toString());
+let startText = loadFromLocalStorage();
+
+logTree(parser.parse(startText), startText);
 
 let state = EditorState.create({
-    doc: loadFromLocalStorage(),
+    doc: startText,
     extensions: [
         keymap.of(defaultKeymap),
         lineNumbers(),

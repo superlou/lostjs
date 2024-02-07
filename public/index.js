@@ -4,7 +4,7 @@
    /**
    The data structure for documents. @nonabstract
    */
-   class Text {
+   let Text$1 = class Text {
        /**
        Get the line description around the given position.
        */
@@ -31,7 +31,7 @@
            if (text.length)
                text.decompose(0, text.length, parts, 1 /* Open.From */ | 2 /* Open.To */);
            this.decompose(to, this.length, parts, 1 /* Open.From */);
-           return TextNode.from(parts, this.length - (to - from) + text.length);
+           return TextNode$1.from(parts, this.length - (to - from) + text.length);
        }
        /**
        Append another document to this one.
@@ -46,7 +46,7 @@
            [from, to] = clip(this, from, to);
            let parts = [];
            this.decompose(from, to, parts, 0);
-           return TextNode.from(parts, to - from);
+           return TextNode$1.from(parts, to - from);
        }
        /**
        Test whether this text is equal to another instance.
@@ -57,7 +57,7 @@
            if (other.length != this.length || other.lines != this.lines)
                return false;
            let start = this.scanIdentical(other, 1), end = this.length - this.scanIdentical(other, -1);
-           let a = new RawTextCursor(this), b = new RawTextCursor(other);
+           let a = new RawTextCursor$1(this), b = new RawTextCursor$1(other);
            for (let skip = start, pos = start;;) {
                a.next(skip);
                b.next(skip);
@@ -74,12 +74,12 @@
        from end to start. This will return lines and the breaks between
        them as separate strings.
        */
-       iter(dir = 1) { return new RawTextCursor(this, dir); }
+       iter(dir = 1) { return new RawTextCursor$1(this, dir); }
        /**
        Iterate over a range of the text. When `from` > `to`, the
        iterator will run in reverse.
        */
-       iterRange(from, to = this.length) { return new PartialTextCursor(this, from, to); }
+       iterRange(from, to = this.length) { return new PartialTextCursor$1(this, from, to); }
        /**
        Return a cursor that iterates over the given range of lines,
        _without_ returning the line breaks between, and yielding empty
@@ -98,7 +98,7 @@
                let start = this.line(from).from;
                inner = this.iterRange(start, Math.max(start, to == this.lines + 1 ? this.length : to <= 1 ? 0 : this.line(to - 1).to));
            }
-           return new LineCursor(inner);
+           return new LineCursor$1(inner);
        }
        /**
        Return the document as a string, using newline characters to
@@ -126,14 +126,14 @@
                throw new RangeError("A document must have at least one line");
            if (text.length == 1 && !text[0])
                return Text.empty;
-           return text.length <= 32 /* Tree.Branch */ ? new TextLeaf(text) : TextNode.from(TextLeaf.split(text, []));
+           return text.length <= 32 /* Tree.Branch */ ? new TextLeaf$1(text) : TextNode$1.from(TextLeaf$1.split(text, []));
        }
-   }
+   };
    // Leaves store an array of line strings. There are always line breaks
    // between these strings. Leaves are limited in size and have to be
    // contained in TextNode instances for bigger documents.
-   class TextLeaf extends Text {
-       constructor(text, length = textLength(text)) {
+   let TextLeaf$1 = class TextLeaf extends Text$1 {
+       constructor(text, length = textLength$1(text)) {
            super();
            this.text = text;
            this.length = length;
@@ -144,17 +144,17 @@
            for (let i = 0;; i++) {
                let string = this.text[i], end = offset + string.length;
                if ((isLine ? line : end) >= target)
-                   return new Line(offset, end, line, string);
+                   return new Line$1(offset, end, line, string);
                offset = end + 1;
                line++;
            }
        }
        decompose(from, to, target, open) {
            let text = from <= 0 && to >= this.length ? this
-               : new TextLeaf(sliceText(this.text, from, to), Math.min(to, this.length) - Math.max(0, from));
+               : new TextLeaf(sliceText$1(this.text, from, to), Math.min(to, this.length) - Math.max(0, from));
            if (open & 1 /* Open.From */) {
                let prev = target.pop();
-               let joined = appendText(text.text, prev.text.slice(), 0, text.length);
+               let joined = appendText$1(text.text, prev.text.slice(), 0, text.length);
                if (joined.length <= 32 /* Tree.Branch */) {
                    target.push(new TextLeaf(joined, prev.length + text.length));
                }
@@ -171,11 +171,11 @@
            if (!(text instanceof TextLeaf))
                return super.replace(from, to, text);
            [from, to] = clip(this, from, to);
-           let lines = appendText(this.text, appendText(text.text, sliceText(this.text, 0, from)), to);
+           let lines = appendText$1(this.text, appendText$1(text.text, sliceText$1(this.text, 0, from)), to);
            let newLen = this.length + text.length - (to - from);
            if (lines.length <= 32 /* Tree.Branch */)
                return new TextLeaf(lines, newLen);
-           return TextNode.from(TextLeaf.split(lines, []), newLen);
+           return TextNode$1.from(TextLeaf.split(lines, []), newLen);
        }
        sliceString(from, to = this.length, lineSep = "\n") {
            [from, to] = clip(this, from, to);
@@ -210,12 +210,12 @@
                target.push(new TextLeaf(part, len));
            return target;
        }
-   }
+   };
    // Nodes provide the tree structure of the `Text` type. They store a
    // number of other nodes or leaves, taking care to balance themselves
    // on changes. There are implied line breaks _between_ the children of
    // a node (but not before the first or after the last child).
-   class TextNode extends Text {
+   let TextNode$1 = class TextNode extends Text$1 {
        constructor(children, length) {
            super();
            this.children = children;
@@ -309,7 +309,7 @@
                let flat = [];
                for (let ch of children)
                    ch.flatten(flat);
-               return new TextLeaf(flat, length);
+               return new TextLeaf$1(flat, length);
            }
            let chunk = Math.max(32 /* Tree.Branch */, lines >> 5 /* Tree.BranchShift */), maxChunk = chunk << 1, minChunk = chunk >> 1;
            let chunked = [], currentLines = 0, currentLen = -1, currentChunk = [];
@@ -323,12 +323,12 @@
                    flush();
                    chunked.push(child);
                }
-               else if (child instanceof TextLeaf && currentLines &&
-                   (last = currentChunk[currentChunk.length - 1]) instanceof TextLeaf &&
+               else if (child instanceof TextLeaf$1 && currentLines &&
+                   (last = currentChunk[currentChunk.length - 1]) instanceof TextLeaf$1 &&
                    child.lines + last.lines <= 32 /* Tree.Branch */) {
                    currentLines += child.lines;
                    currentLen += child.length + 1;
-                   currentChunk[currentChunk.length - 1] = new TextLeaf(last.text.concat(child.text), last.length + 1 + child.length);
+                   currentChunk[currentChunk.length - 1] = new TextLeaf$1(last.text.concat(child.text), last.length + 1 + child.length);
                }
                else {
                    if (currentLines + child.lines > chunk)
@@ -350,15 +350,15 @@
            flush();
            return chunked.length == 1 ? chunked[0] : new TextNode(chunked, length);
        }
-   }
-   Text.empty = /*@__PURE__*/new TextLeaf([""], 0);
-   function textLength(text) {
+   };
+   Text$1.empty = /*@__PURE__*/new TextLeaf$1([""], 0);
+   function textLength$1(text) {
        let length = -1;
        for (let line of text)
            length += line.length + 1;
        return length;
    }
-   function appendText(text, target, from = 0, to = 1e9) {
+   function appendText$1(text, target, from = 0, to = 1e9) {
        for (let pos = 0, i = 0, first = true; i < text.length && pos <= to; i++) {
            let line = text[i], end = pos + line.length;
            if (end >= from) {
@@ -377,24 +377,24 @@
        }
        return target;
    }
-   function sliceText(text, from, to) {
-       return appendText(text, [""], from, to);
+   function sliceText$1(text, from, to) {
+       return appendText$1(text, [""], from, to);
    }
-   class RawTextCursor {
+   let RawTextCursor$1 = class RawTextCursor {
        constructor(text, dir = 1) {
            this.dir = dir;
            this.done = false;
            this.lineBreak = false;
            this.value = "";
            this.nodes = [text];
-           this.offsets = [dir > 0 ? 1 : (text instanceof TextLeaf ? text.text.length : text.children.length) << 1];
+           this.offsets = [dir > 0 ? 1 : (text instanceof TextLeaf$1 ? text.text.length : text.children.length) << 1];
        }
        nextInner(skip, dir) {
            this.done = this.lineBreak = false;
            for (;;) {
                let last = this.nodes.length - 1;
                let top = this.nodes[last], offsetValue = this.offsets[last], offset = offsetValue >> 1;
-               let size = top instanceof TextLeaf ? top.text.length : top.children.length;
+               let size = top instanceof TextLeaf$1 ? top.text.length : top.children.length;
                if (offset == (dir > 0 ? size : 0)) {
                    if (last == 0) {
                        this.done = true;
@@ -415,7 +415,7 @@
                    }
                    skip--;
                }
-               else if (top instanceof TextLeaf) {
+               else if (top instanceof TextLeaf$1) {
                    // Move to the next string
                    let next = top.text[offset + (dir < 0 ? -1 : 0)];
                    this.offsets[last] += dir;
@@ -435,7 +435,7 @@
                        if (dir < 0)
                            this.offsets[last]--;
                        this.nodes.push(next);
-                       this.offsets.push(dir > 0 ? 1 : (next instanceof TextLeaf ? next.text.length : next.children.length) << 1);
+                       this.offsets.push(dir > 0 ? 1 : (next instanceof TextLeaf$1 ? next.text.length : next.children.length) << 1);
                    }
                }
            }
@@ -447,12 +447,12 @@
            }
            return this.nextInner(skip, this.dir);
        }
-   }
-   class PartialTextCursor {
+   };
+   let PartialTextCursor$1 = class PartialTextCursor {
        constructor(text, start, end) {
            this.value = "";
            this.done = false;
-           this.cursor = new RawTextCursor(text, start > end ? -1 : 1);
+           this.cursor = new RawTextCursor$1(text, start > end ? -1 : 1);
            this.pos = start > end ? text.length : 0;
            this.from = Math.min(start, end);
            this.to = Math.max(start, end);
@@ -482,8 +482,8 @@
            return this.nextInner(skip, this.cursor.dir);
        }
        get lineBreak() { return this.cursor.lineBreak && this.value != ""; }
-   }
-   class LineCursor {
+   };
+   let LineCursor$1 = class LineCursor {
        constructor(inner) {
            this.inner = inner;
            this.afterBreak = true;
@@ -516,17 +516,17 @@
            return this;
        }
        get lineBreak() { return false; }
-   }
+   };
    if (typeof Symbol != "undefined") {
-       Text.prototype[Symbol.iterator] = function () { return this.iter(); };
-       RawTextCursor.prototype[Symbol.iterator] = PartialTextCursor.prototype[Symbol.iterator] =
-           LineCursor.prototype[Symbol.iterator] = function () { return this; };
+       Text$1.prototype[Symbol.iterator] = function () { return this.iter(); };
+       RawTextCursor$1.prototype[Symbol.iterator] = PartialTextCursor$1.prototype[Symbol.iterator] =
+           LineCursor$1.prototype[Symbol.iterator] = function () { return this; };
    }
    /**
    This type describes a line in the document. It is created
    on-demand when lines are [queried](https://codemirror.net/6/docs/ref/#state.Text.lineAt).
    */
-   class Line {
+   let Line$1 = class Line {
        /**
        @internal
        */
@@ -557,7 +557,7 @@
        The length of the line (not including any line break after it).
        */
        get length() { return this.to - this.from; }
-   }
+   };
    function clip(text, from, to) {
        from = Math.max(0, Math.min(text.length, from));
        return [from, Math.max(from, Math.min(text.length, to))];
@@ -569,14 +569,14 @@
    // Each pair of elements represents a range, as an offet from the
    // previous range and a length. Numbers are in base-36, with the empty
    // string being a shorthand for 1.
-   let extend = /*@__PURE__*/"lc,34,7n,7,7b,19,,,,2,,2,,,20,b,1c,l,g,,2t,7,2,6,2,2,,4,z,,u,r,2j,b,1m,9,9,,o,4,,9,,3,,5,17,3,3b,f,,w,1j,,,,4,8,4,,3,7,a,2,t,,1m,,,,2,4,8,,9,,a,2,q,,2,2,1l,,4,2,4,2,2,3,3,,u,2,3,,b,2,1l,,4,5,,2,4,,k,2,m,6,,,1m,,,2,,4,8,,7,3,a,2,u,,1n,,,,c,,9,,14,,3,,1l,3,5,3,,4,7,2,b,2,t,,1m,,2,,2,,3,,5,2,7,2,b,2,s,2,1l,2,,,2,4,8,,9,,a,2,t,,20,,4,,2,3,,,8,,29,,2,7,c,8,2q,,2,9,b,6,22,2,r,,,,,,1j,e,,5,,2,5,b,,10,9,,2u,4,,6,,2,2,2,p,2,4,3,g,4,d,,2,2,6,,f,,jj,3,qa,3,t,3,t,2,u,2,1s,2,,7,8,,2,b,9,,19,3,3b,2,y,,3a,3,4,2,9,,6,3,63,2,2,,1m,,,7,,,,,2,8,6,a,2,,1c,h,1r,4,1c,7,,,5,,14,9,c,2,w,4,2,2,,3,1k,,,2,3,,,3,1m,8,2,2,48,3,,d,,7,4,,6,,3,2,5i,1m,,5,ek,,5f,x,2da,3,3x,,2o,w,fe,6,2x,2,n9w,4,,a,w,2,28,2,7k,,3,,4,,p,2,5,,47,2,q,i,d,,12,8,p,b,1a,3,1c,,2,4,2,2,13,,1v,6,2,2,2,2,c,,8,,1b,,1f,,,3,2,2,5,2,,,16,2,8,,6m,,2,,4,,fn4,,kh,g,g,g,a6,2,gt,,6a,,45,5,1ae,3,,2,5,4,14,3,4,,4l,2,fx,4,ar,2,49,b,4w,,1i,f,1k,3,1d,4,2,2,1x,3,10,5,,8,1q,,c,2,1g,9,a,4,2,,2n,3,2,,,2,6,,4g,,3,8,l,2,1l,2,,,,,m,,e,7,3,5,5f,8,2,3,,,n,,29,,2,6,,,2,,,2,,2,6j,,2,4,6,2,,2,r,2,2d,8,2,,,2,2y,,,,2,6,,,2t,3,2,4,,5,77,9,,2,6t,,a,2,,,4,,40,4,2,2,4,,w,a,14,6,2,4,8,,9,6,2,3,1a,d,,2,ba,7,,6,,,2a,m,2,7,,2,,2,3e,6,3,,,2,,7,,,20,2,3,,,,9n,2,f0b,5,1n,7,t4,,1r,4,29,,f5k,2,43q,,,3,4,5,8,8,2,7,u,4,44,3,1iz,1j,4,1e,8,,e,,m,5,,f,11s,7,,h,2,7,,2,,5,79,7,c5,4,15s,7,31,7,240,5,gx7k,2o,3k,6o".split(",").map(s => s ? parseInt(s, 36) : 1);
+   let extend$1 = /*@__PURE__*/"lc,34,7n,7,7b,19,,,,2,,2,,,20,b,1c,l,g,,2t,7,2,6,2,2,,4,z,,u,r,2j,b,1m,9,9,,o,4,,9,,3,,5,17,3,3b,f,,w,1j,,,,4,8,4,,3,7,a,2,t,,1m,,,,2,4,8,,9,,a,2,q,,2,2,1l,,4,2,4,2,2,3,3,,u,2,3,,b,2,1l,,4,5,,2,4,,k,2,m,6,,,1m,,,2,,4,8,,7,3,a,2,u,,1n,,,,c,,9,,14,,3,,1l,3,5,3,,4,7,2,b,2,t,,1m,,2,,2,,3,,5,2,7,2,b,2,s,2,1l,2,,,2,4,8,,9,,a,2,t,,20,,4,,2,3,,,8,,29,,2,7,c,8,2q,,2,9,b,6,22,2,r,,,,,,1j,e,,5,,2,5,b,,10,9,,2u,4,,6,,2,2,2,p,2,4,3,g,4,d,,2,2,6,,f,,jj,3,qa,3,t,3,t,2,u,2,1s,2,,7,8,,2,b,9,,19,3,3b,2,y,,3a,3,4,2,9,,6,3,63,2,2,,1m,,,7,,,,,2,8,6,a,2,,1c,h,1r,4,1c,7,,,5,,14,9,c,2,w,4,2,2,,3,1k,,,2,3,,,3,1m,8,2,2,48,3,,d,,7,4,,6,,3,2,5i,1m,,5,ek,,5f,x,2da,3,3x,,2o,w,fe,6,2x,2,n9w,4,,a,w,2,28,2,7k,,3,,4,,p,2,5,,47,2,q,i,d,,12,8,p,b,1a,3,1c,,2,4,2,2,13,,1v,6,2,2,2,2,c,,8,,1b,,1f,,,3,2,2,5,2,,,16,2,8,,6m,,2,,4,,fn4,,kh,g,g,g,a6,2,gt,,6a,,45,5,1ae,3,,2,5,4,14,3,4,,4l,2,fx,4,ar,2,49,b,4w,,1i,f,1k,3,1d,4,2,2,1x,3,10,5,,8,1q,,c,2,1g,9,a,4,2,,2n,3,2,,,2,6,,4g,,3,8,l,2,1l,2,,,,,m,,e,7,3,5,5f,8,2,3,,,n,,29,,2,6,,,2,,,2,,2,6j,,2,4,6,2,,2,r,2,2d,8,2,,,2,2y,,,,2,6,,,2t,3,2,4,,5,77,9,,2,6t,,a,2,,,4,,40,4,2,2,4,,w,a,14,6,2,4,8,,9,6,2,3,1a,d,,2,ba,7,,6,,,2a,m,2,7,,2,,2,3e,6,3,,,2,,7,,,20,2,3,,,,9n,2,f0b,5,1n,7,t4,,1r,4,29,,f5k,2,43q,,,3,4,5,8,8,2,7,u,4,44,3,1iz,1j,4,1e,8,,e,,m,5,,f,11s,7,,h,2,7,,2,,5,79,7,c5,4,15s,7,31,7,240,5,gx7k,2o,3k,6o".split(",").map(s => s ? parseInt(s, 36) : 1);
    // Convert offsets into absolute values
-   for (let i = 1; i < extend.length; i++)
-       extend[i] += extend[i - 1];
+   for (let i = 1; i < extend$1.length; i++)
+       extend$1[i] += extend$1[i - 1];
    function isExtendingChar(code) {
-       for (let i = 1; i < extend.length; i += 2)
-           if (extend[i] > code)
-               return extend[i - 1] <= code;
+       for (let i = 1; i < extend$1.length; i += 2)
+           if (extend$1[i] > code)
+               return extend$1[i - 1] <= code;
        return false;
    }
    function isRegionalIndicator(code) {
@@ -891,8 +891,8 @@
                    sections[i + 1] = len;
                    let index = i >> 1;
                    while (inserted.length < index)
-                       inserted.push(Text.empty);
-                   inserted.push(len ? doc.slice(pos, pos + len) : Text.empty);
+                       inserted.push(Text$1.empty);
+                   inserted.push(len ? doc.slice(pos, pos + len) : Text$1.empty);
                }
                pos += len;
            }
@@ -1019,7 +1019,7 @@
                    let { from, to = from, insert } = spec;
                    if (from > to || from < 0 || to > length)
                        throw new RangeError(`Invalid change range ${from} to ${to} (in doc of length ${length})`);
-                   let insText = !insert ? Text.empty : typeof insert == "string" ? Text.of(insert.split(lineSep || DefaultSplit)) : insert;
+                   let insText = !insert ? Text$1.empty : typeof insert == "string" ? Text$1.of(insert.split(lineSep || DefaultSplit)) : insert;
                    let insLen = insText.length;
                    if (from == to && insLen == 0)
                        return;
@@ -1063,8 +1063,8 @@
                }
                else {
                    while (inserted.length < i)
-                       inserted.push(Text.empty);
-                   inserted[i] = Text.of(part.slice(1));
+                       inserted.push(Text$1.empty);
+                   inserted[i] = Text$1.of(part.slice(1));
                    sections.push(part[0], inserted[i].length);
                }
            }
@@ -1101,7 +1101,7 @@
        }
        else {
            while (values.length < index)
-               values.push(Text.empty);
+               values.push(Text$1.empty);
            values.push(value);
        }
    }
@@ -1114,7 +1114,7 @@
                posB += len;
            }
            else {
-               let endA = posA, endB = posB, text = Text.empty;
+               let endA = posA, endB = posB, text = Text$1.empty;
                for (;;) {
                    endA += len;
                    endB += ins;
@@ -1267,11 +1267,11 @@
        get len2() { return this.ins < 0 ? this.len : this.ins; }
        get text() {
            let { inserted } = this.set, index = (this.i - 2) >> 1;
-           return index >= inserted.length ? Text.empty : inserted[index];
+           return index >= inserted.length ? Text$1.empty : inserted[index];
        }
        textBit(len) {
            let { inserted } = this.set, index = (this.i - 2) >> 1;
-           return index >= inserted.length && !len ? Text.empty
+           return index >= inserted.length && !len ? Text$1.empty
                : inserted[index].slice(this.off, len == null ? undefined : this.off + len);
        }
        forward(len) {
@@ -2710,7 +2710,7 @@
        [`Text`](https://codemirror.net/6/docs/ref/#state.Text) instance from the given string.
        */
        toText(string) {
-           return Text.of(string.split(this.facet(EditorState.lineSeparator) || DefaultSplit));
+           return Text$1.of(string.split(this.facet(EditorState.lineSeparator) || DefaultSplit));
        }
        /**
        Return the given range of the document as a string.
@@ -2777,8 +2777,8 @@
        */
        static create(config = {}) {
            let configuration = Configuration.resolve(config.extensions || [], new Map);
-           let doc = config.doc instanceof Text ? config.doc
-               : Text.of((config.doc || "").split(configuration.staticFacet(EditorState.lineSeparator) || DefaultSplit));
+           let doc = config.doc instanceof Text$1 ? config.doc
+               : Text$1.of((config.doc || "").split(configuration.staticFacet(EditorState.lineSeparator) || DefaultSplit));
            let selection = !config.selection ? EditorSelection.single(0)
                : config.selection instanceof EditorSelection ? config.selection
                    : EditorSelection.single(config.selection.anchor, config.selection.head);
@@ -5105,12 +5105,12 @@
        ignoreEvent(event) { return this.widget.ignoreEvent(event); }
        get overrideDOMText() {
            if (this.length == 0)
-               return Text.empty;
+               return Text$1.empty;
            let top = this;
            while (top.parent)
                top = top.parent;
            let { view } = top, text = view && view.state.doc, start = this.posAtStart;
-           return text ? text.slice(start, start + this.length) : Text.empty;
+           return text ? text.slice(start, start + this.length) : Text$1.empty;
        }
        domAtPos(pos) {
            return (this.length ? pos == 0 : this.side > 0)
@@ -5172,7 +5172,7 @@
            return this.dom.getBoundingClientRect();
        }
        get overrideDOMText() {
-           return Text.empty;
+           return Text$1.empty;
        }
        get isHidden() { return true; }
    }
@@ -5505,7 +5505,7 @@
            }
        }
        get overrideDOMText() {
-           return this.parent ? this.parent.view.state.doc.slice(this.posAtStart, this.posAtEnd) : Text.empty;
+           return this.parent ? this.parent.view.state.doc.slice(this.posAtStart, this.posAtEnd) : Text$1.empty;
        }
        domBoundsAround() { return null; }
        become(other) {
@@ -8695,7 +8695,7 @@
    class HeightOracle {
        constructor(lineWrapping) {
            this.lineWrapping = lineWrapping;
-           this.doc = Text.empty;
+           this.doc = Text$1.empty;
            this.heightSamples = {};
            this.lineHeight = 14; // The height of an entire line (line-height)
            this.charWidth = 7;
@@ -9530,7 +9530,7 @@
            let guessWrapping = state.facet(contentAttributes).some(v => typeof v != "function" && v.class == "cm-lineWrapping");
            this.heightOracle = new HeightOracle(guessWrapping);
            this.stateDeco = state.facet(decorations).filter(d => typeof d != "function");
-           this.heightMap = HeightMap.empty().applyChanges(this.stateDeco, Text.empty, this.heightOracle.setDoc(state.doc), [new ChangedRange(0, 0, 0, state.doc.length)]);
+           this.heightMap = HeightMap.empty().applyChanges(this.stateDeco, Text$1.empty, this.heightOracle.setDoc(state.doc), [new ChangedRange(0, 0, 0, state.doc.length)]);
            this.viewport = this.getViewport(0, null);
            this.updateViewportLines();
            this.updateForViewport();
@@ -9673,7 +9673,7 @@
                oracle.heightChanged = false;
                for (let vp of this.viewports) {
                    let heights = vp.from == this.viewport.from ? lineHeights : view.docView.measureVisibleLineHeights(vp);
-                   this.heightMap = (refresh ? HeightMap.empty().applyChanges(this.stateDeco, Text.empty, this.heightOracle, [new ChangedRange(0, 0, 0, view.state.doc.length)]) : this.heightMap).updateHeight(oracle, 0, refresh, new MeasuredHeights(vp.from, heights));
+                   this.heightMap = (refresh ? HeightMap.empty().applyChanges(this.stateDeco, Text$1.empty, this.heightOracle, [new ChangedRange(0, 0, 0, view.state.doc.length)]) : this.heightMap).updateHeight(oracle, 0, refresh, new MeasuredHeights(vp.from, heights));
                }
                if (oracle.heightChanged)
                    result |= 2 /* UpdateFlag.Height */;
@@ -10445,7 +10445,7 @@
                    diff.toB == diff.from + 2 && domChange.text.slice(diff.from, diff.toB) == LineBreakPlaceholder + LineBreakPlaceholder)
                    diff.toB--;
                change = { from: from + diff.from, to: from + diff.toA,
-                   insert: Text.of(domChange.text.slice(diff.from, diff.toB).split(LineBreakPlaceholder)) };
+                   insert: Text$1.of(domChange.text.slice(diff.from, diff.toB).split(LineBreakPlaceholder)) };
            }
        }
        else if (newSel && (!view.hasFocus && view.state.facet(editable) || newSel.main.eq(sel))) {
@@ -10474,7 +10474,7 @@
            // and transform it into a regular space insert.
            if (newSel && change.insert.length == 2)
                newSel = EditorSelection.single(newSel.main.anchor - 1, newSel.main.head - 1);
-           change = { from: sel.from, to: sel.to, insert: Text.of([" "]) };
+           change = { from: sel.from, to: sel.to, insert: Text$1.of([" "]) };
        }
        else if (browser.chrome && change && change.from == change.to && change.from == sel.head &&
            change.insert.toString() == "\n " && view.lineWrapping) {
@@ -10483,7 +10483,7 @@
            // bogus new line to be created in CodeMirror (#968)
            if (newSel)
                newSel = EditorSelection.single(newSel.main.anchor - 1, newSel.main.head - 1);
-           change = { from: sel.from, to: sel.to, insert: Text.of([" "]) };
+           change = { from: sel.from, to: sel.to, insert: Text$1.of([" "]) };
        }
        if (change) {
            if (browser.ios && view.inputState.flushIOSKey())
@@ -14939,7 +14939,7 @@
        */
        startParse(input, fragments, ranges) {
            if (typeof input == "string")
-               input = new StringInput(input);
+               input = new StringInput$1(input);
            ranges = !ranges ? [new Range(0, input.length)] : ranges.length ? ranges.map(r => new Range(r.from, r.to)) : [new Range(0, 0)];
            return this.createParse(input, fragments || [], ranges);
        }
@@ -14955,7 +14955,7 @@
            }
        }
    }
-   class StringInput {
+   let StringInput$1 = class StringInput {
        constructor(string) {
            this.string = string;
        }
@@ -14963,7 +14963,7 @@
        chunk(from) { return this.string.slice(from); }
        get lineChunks() { return false; }
        read(from, to) { return this.string.slice(from, to); }
-   }
+   };
    new NodeProp({ perNode: true });
 
    let nextTagID = 0;
@@ -18444,7 +18444,7 @@
        if (state.readOnly)
            return false;
        let changes = state.changeByRange(range => {
-           return { changes: { from: range.from, to: range.to, insert: Text.of(["", ""]) },
+           return { changes: { from: range.from, to: range.to, insert: Text$1.of(["", ""]) },
                range: EditorSelection.cursor(range.from) };
        });
        dispatch(state.update(changes, { scrollIntoView: true, userEvent: "input" }));
@@ -18610,7 +18610,7 @@
                let insert = ["", indentString(state, indent)];
                if (explode)
                    insert.push(indentString(state, cx.lineIndent(line.from, -1)));
-               return { changes: { from, to, insert: Text.of(insert) },
+               return { changes: { from, to, insert: Text$1.of(insert) },
                    range: EditorSelection.cursor(from + 1 + insert[1].length) };
            });
            dispatch(state.update(changes, { scrollIntoView: true, userEvent: "input" }));
@@ -18842,6 +18842,765 @@
            localStorage.setItem("doc", doc);
        }
    });
+
+   // Compressed representation of the Grapheme_Cluster_Break=Extend
+   // information from
+   // http://www.unicode.org/Public/13.0.0/ucd/auxiliary/GraphemeBreakProperty.txt.
+   // Each pair of elements represents a range, as an offet from the
+   // previous range and a length. Numbers are in base-36, with the empty
+   // string being a shorthand for 1.
+   let extend = /*@__PURE__*/"lc,34,7n,7,7b,19,,,,2,,2,,,20,b,1c,l,g,,2t,7,2,6,2,2,,4,z,,u,r,2j,b,1m,9,9,,o,4,,9,,3,,5,17,3,3b,f,,w,1j,,,,4,8,4,,3,7,a,2,t,,1m,,,,2,4,8,,9,,a,2,q,,2,2,1l,,4,2,4,2,2,3,3,,u,2,3,,b,2,1l,,4,5,,2,4,,k,2,m,6,,,1m,,,2,,4,8,,7,3,a,2,u,,1n,,,,c,,9,,14,,3,,1l,3,5,3,,4,7,2,b,2,t,,1m,,2,,2,,3,,5,2,7,2,b,2,s,2,1l,2,,,2,4,8,,9,,a,2,t,,20,,4,,2,3,,,8,,29,,2,7,c,8,2q,,2,9,b,6,22,2,r,,,,,,1j,e,,5,,2,5,b,,10,9,,2u,4,,6,,2,2,2,p,2,4,3,g,4,d,,2,2,6,,f,,jj,3,qa,3,t,3,t,2,u,2,1s,2,,7,8,,2,b,9,,19,3,3b,2,y,,3a,3,4,2,9,,6,3,63,2,2,,1m,,,7,,,,,2,8,6,a,2,,1c,h,1r,4,1c,7,,,5,,14,9,c,2,w,4,2,2,,3,1k,,,2,3,,,3,1m,8,2,2,48,3,,d,,7,4,,6,,3,2,5i,1m,,5,ek,,5f,x,2da,3,3x,,2o,w,fe,6,2x,2,n9w,4,,a,w,2,28,2,7k,,3,,4,,p,2,5,,47,2,q,i,d,,12,8,p,b,1a,3,1c,,2,4,2,2,13,,1v,6,2,2,2,2,c,,8,,1b,,1f,,,3,2,2,5,2,,,16,2,8,,6m,,2,,4,,fn4,,kh,g,g,g,a6,2,gt,,6a,,45,5,1ae,3,,2,5,4,14,3,4,,4l,2,fx,4,ar,2,49,b,4w,,1i,f,1k,3,1d,4,2,2,1x,3,10,5,,8,1q,,c,2,1g,9,a,4,2,,2n,3,2,,,2,6,,4g,,3,8,l,2,1l,2,,,,,m,,e,7,3,5,5f,8,2,3,,,n,,29,,2,6,,,2,,,2,,2,6j,,2,4,6,2,,2,r,2,2d,8,2,,,2,2y,,,,2,6,,,2t,3,2,4,,5,77,9,,2,6t,,a,2,,,4,,40,4,2,2,4,,w,a,14,6,2,4,8,,9,6,2,3,1a,d,,2,ba,7,,6,,,2a,m,2,7,,2,,2,3e,6,3,,,2,,7,,,20,2,3,,,,9n,2,f0b,5,1n,7,t4,,1r,4,29,,f5k,2,43q,,,3,4,5,8,8,2,7,u,4,44,3,1iz,1j,4,1e,8,,e,,m,5,,f,11s,7,,h,2,7,,2,,5,79,7,c5,4,15s,7,31,7,240,5,gx7k,2o,3k,6o".split(",").map(s => s ? parseInt(s, 36) : 1);
+   // Convert offsets into absolute values
+   for (let i = 1; i < extend.length; i++)
+       extend[i] += extend[i - 1];
+
+   /**
+   The data structure for documents.
+   */
+   class Text {
+       /**
+       @internal
+       */
+       constructor() { }
+       /**
+       Get the line description around the given position.
+       */
+       lineAt(pos) {
+           if (pos < 0 || pos > this.length)
+               throw new RangeError(`Invalid position ${pos} in document of length ${this.length}`);
+           return this.lineInner(pos, false, 1, 0);
+       }
+       /**
+       Get the description for the given (1-based) line number.
+       */
+       line(n) {
+           if (n < 1 || n > this.lines)
+               throw new RangeError(`Invalid line number ${n} in ${this.lines}-line document`);
+           return this.lineInner(n, true, 1, 0);
+       }
+       /**
+       Replace a range of the text with the given content.
+       */
+       replace(from, to, text) {
+           let parts = [];
+           this.decompose(0, from, parts, 2 /* To */);
+           if (text.length)
+               text.decompose(0, text.length, parts, 1 /* From */ | 2 /* To */);
+           this.decompose(to, this.length, parts, 1 /* From */);
+           return TextNode.from(parts, this.length - (to - from) + text.length);
+       }
+       /**
+       Append another document to this one.
+       */
+       append(other) {
+           return this.replace(this.length, this.length, other);
+       }
+       /**
+       Retrieve the text between the given points.
+       */
+       slice(from, to = this.length) {
+           let parts = [];
+           this.decompose(from, to, parts, 0);
+           return TextNode.from(parts, to - from);
+       }
+       /**
+       Test whether this text is equal to another instance.
+       */
+       eq(other) {
+           if (other == this)
+               return true;
+           if (other.length != this.length || other.lines != this.lines)
+               return false;
+           let start = this.scanIdentical(other, 1), end = this.length - this.scanIdentical(other, -1);
+           let a = new RawTextCursor(this), b = new RawTextCursor(other);
+           for (let skip = start, pos = start;;) {
+               a.next(skip);
+               b.next(skip);
+               skip = 0;
+               if (a.lineBreak != b.lineBreak || a.done != b.done || a.value != b.value)
+                   return false;
+               pos += a.value.length;
+               if (a.done || pos >= end)
+                   return true;
+           }
+       }
+       /**
+       Iterate over the text. When `dir` is `-1`, iteration happens
+       from end to start. This will return lines and the breaks between
+       them as separate strings, and for long lines, might split lines
+       themselves into multiple chunks as well.
+       */
+       iter(dir = 1) { return new RawTextCursor(this, dir); }
+       /**
+       Iterate over a range of the text. When `from` > `to`, the
+       iterator will run in reverse.
+       */
+       iterRange(from, to = this.length) { return new PartialTextCursor(this, from, to); }
+       /**
+       Return a cursor that iterates over the given range of lines,
+       _without_ returning the line breaks between, and yielding empty
+       strings for empty lines.
+       
+       When `from` and `to` are given, they should be 1-based line numbers.
+       */
+       iterLines(from, to) {
+           let inner;
+           if (from == null) {
+               inner = this.iter();
+           }
+           else {
+               if (to == null)
+                   to = this.lines + 1;
+               let start = this.line(from).from;
+               inner = this.iterRange(start, Math.max(start, to == this.lines + 1 ? this.length : to <= 1 ? 0 : this.line(to - 1).to));
+           }
+           return new LineCursor(inner);
+       }
+       /**
+       @internal
+       */
+       toString() { return this.sliceString(0); }
+       /**
+       Convert the document to an array of lines (which can be
+       deserialized again via [`Text.of`](https://codemirror.net/6/docs/ref/#text.Text^of)).
+       */
+       toJSON() {
+           let lines = [];
+           this.flatten(lines);
+           return lines;
+       }
+       /**
+       Create a `Text` instance for the given array of lines.
+       */
+       static of(text) {
+           if (text.length == 0)
+               throw new RangeError("A document must have at least one line");
+           if (text.length == 1 && !text[0])
+               return Text.empty;
+           return text.length <= 32 /* Branch */ ? new TextLeaf(text) : TextNode.from(TextLeaf.split(text, []));
+       }
+   }
+   // Leaves store an array of line strings. There are always line breaks
+   // between these strings. Leaves are limited in size and have to be
+   // contained in TextNode instances for bigger documents.
+   class TextLeaf extends Text {
+       constructor(text, length = textLength(text)) {
+           super();
+           this.text = text;
+           this.length = length;
+       }
+       get lines() { return this.text.length; }
+       get children() { return null; }
+       lineInner(target, isLine, line, offset) {
+           for (let i = 0;; i++) {
+               let string = this.text[i], end = offset + string.length;
+               if ((isLine ? line : end) >= target)
+                   return new Line(offset, end, line, string);
+               offset = end + 1;
+               line++;
+           }
+       }
+       decompose(from, to, target, open) {
+           let text = from <= 0 && to >= this.length ? this
+               : new TextLeaf(sliceText(this.text, from, to), Math.min(to, this.length) - Math.max(0, from));
+           if (open & 1 /* From */) {
+               let prev = target.pop();
+               let joined = appendText(text.text, prev.text.slice(), 0, text.length);
+               if (joined.length <= 32 /* Branch */) {
+                   target.push(new TextLeaf(joined, prev.length + text.length));
+               }
+               else {
+                   let mid = joined.length >> 1;
+                   target.push(new TextLeaf(joined.slice(0, mid)), new TextLeaf(joined.slice(mid)));
+               }
+           }
+           else {
+               target.push(text);
+           }
+       }
+       replace(from, to, text) {
+           if (!(text instanceof TextLeaf))
+               return super.replace(from, to, text);
+           let lines = appendText(this.text, appendText(text.text, sliceText(this.text, 0, from)), to);
+           let newLen = this.length + text.length - (to - from);
+           if (lines.length <= 32 /* Branch */)
+               return new TextLeaf(lines, newLen);
+           return TextNode.from(TextLeaf.split(lines, []), newLen);
+       }
+       sliceString(from, to = this.length, lineSep = "\n") {
+           let result = "";
+           for (let pos = 0, i = 0; pos <= to && i < this.text.length; i++) {
+               let line = this.text[i], end = pos + line.length;
+               if (pos > from && i)
+                   result += lineSep;
+               if (from < end && to > pos)
+                   result += line.slice(Math.max(0, from - pos), to - pos);
+               pos = end + 1;
+           }
+           return result;
+       }
+       flatten(target) {
+           for (let line of this.text)
+               target.push(line);
+       }
+       scanIdentical() { return 0; }
+       static split(text, target) {
+           let part = [], len = -1;
+           for (let line of text) {
+               part.push(line);
+               len += line.length + 1;
+               if (part.length == 32 /* Branch */) {
+                   target.push(new TextLeaf(part, len));
+                   part = [];
+                   len = -1;
+               }
+           }
+           if (len > -1)
+               target.push(new TextLeaf(part, len));
+           return target;
+       }
+   }
+   // Nodes provide the tree structure of the `Text` type. They store a
+   // number of other nodes or leaves, taking care to balance themselves
+   // on changes. There are implied line breaks _between_ the children of
+   // a node (but not before the first or after the last child).
+   class TextNode extends Text {
+       constructor(children, length) {
+           super();
+           this.children = children;
+           this.length = length;
+           this.lines = 0;
+           for (let child of children)
+               this.lines += child.lines;
+       }
+       lineInner(target, isLine, line, offset) {
+           for (let i = 0;; i++) {
+               let child = this.children[i], end = offset + child.length, endLine = line + child.lines - 1;
+               if ((isLine ? endLine : end) >= target)
+                   return child.lineInner(target, isLine, line, offset);
+               offset = end + 1;
+               line = endLine + 1;
+           }
+       }
+       decompose(from, to, target, open) {
+           for (let i = 0, pos = 0; pos <= to && i < this.children.length; i++) {
+               let child = this.children[i], end = pos + child.length;
+               if (from <= end && to >= pos) {
+                   let childOpen = open & ((pos <= from ? 1 /* From */ : 0) | (end >= to ? 2 /* To */ : 0));
+                   if (pos >= from && end <= to && !childOpen)
+                       target.push(child);
+                   else
+                       child.decompose(from - pos, to - pos, target, childOpen);
+               }
+               pos = end + 1;
+           }
+       }
+       replace(from, to, text) {
+           if (text.lines < this.lines)
+               for (let i = 0, pos = 0; i < this.children.length; i++) {
+                   let child = this.children[i], end = pos + child.length;
+                   // Fast path: if the change only affects one child and the
+                   // child's size remains in the acceptable range, only update
+                   // that child
+                   if (from >= pos && to <= end) {
+                       let updated = child.replace(from - pos, to - pos, text);
+                       let totalLines = this.lines - child.lines + updated.lines;
+                       if (updated.lines < (totalLines >> (5 /* BranchShift */ - 1)) &&
+                           updated.lines > (totalLines >> (5 /* BranchShift */ + 1))) {
+                           let copy = this.children.slice();
+                           copy[i] = updated;
+                           return new TextNode(copy, this.length - (to - from) + text.length);
+                       }
+                       return super.replace(pos, end, updated);
+                   }
+                   pos = end + 1;
+               }
+           return super.replace(from, to, text);
+       }
+       sliceString(from, to = this.length, lineSep = "\n") {
+           let result = "";
+           for (let i = 0, pos = 0; i < this.children.length && pos <= to; i++) {
+               let child = this.children[i], end = pos + child.length;
+               if (pos > from && i)
+                   result += lineSep;
+               if (from < end && to > pos)
+                   result += child.sliceString(from - pos, to - pos, lineSep);
+               pos = end + 1;
+           }
+           return result;
+       }
+       flatten(target) {
+           for (let child of this.children)
+               child.flatten(target);
+       }
+       scanIdentical(other, dir) {
+           if (!(other instanceof TextNode))
+               return 0;
+           let length = 0;
+           let [iA, iB, eA, eB] = dir > 0 ? [0, 0, this.children.length, other.children.length]
+               : [this.children.length - 1, other.children.length - 1, -1, -1];
+           for (;; iA += dir, iB += dir) {
+               if (iA == eA || iB == eB)
+                   return length;
+               let chA = this.children[iA], chB = other.children[iB];
+               if (chA != chB)
+                   return length + chA.scanIdentical(chB, dir);
+               length += chA.length + 1;
+           }
+       }
+       static from(children, length = children.reduce((l, ch) => l + ch.length + 1, -1)) {
+           let lines = 0;
+           for (let ch of children)
+               lines += ch.lines;
+           if (lines < 32 /* Branch */) {
+               let flat = [];
+               for (let ch of children)
+                   ch.flatten(flat);
+               return new TextLeaf(flat, length);
+           }
+           let chunk = Math.max(32 /* Branch */, lines >> 5 /* BranchShift */), maxChunk = chunk << 1, minChunk = chunk >> 1;
+           let chunked = [], currentLines = 0, currentLen = -1, currentChunk = [];
+           function add(child) {
+               let last;
+               if (child.lines > maxChunk && child instanceof TextNode) {
+                   for (let node of child.children)
+                       add(node);
+               }
+               else if (child.lines > minChunk && (currentLines > minChunk || !currentLines)) {
+                   flush();
+                   chunked.push(child);
+               }
+               else if (child instanceof TextLeaf && currentLines &&
+                   (last = currentChunk[currentChunk.length - 1]) instanceof TextLeaf &&
+                   child.lines + last.lines <= 32 /* Branch */) {
+                   currentLines += child.lines;
+                   currentLen += child.length + 1;
+                   currentChunk[currentChunk.length - 1] = new TextLeaf(last.text.concat(child.text), last.length + 1 + child.length);
+               }
+               else {
+                   if (currentLines + child.lines > chunk)
+                       flush();
+                   currentLines += child.lines;
+                   currentLen += child.length + 1;
+                   currentChunk.push(child);
+               }
+           }
+           function flush() {
+               if (currentLines == 0)
+                   return;
+               chunked.push(currentChunk.length == 1 ? currentChunk[0] : TextNode.from(currentChunk, currentLen));
+               currentLen = -1;
+               currentLines = currentChunk.length = 0;
+           }
+           for (let child of children)
+               add(child);
+           flush();
+           return chunked.length == 1 ? chunked[0] : new TextNode(chunked, length);
+       }
+   }
+   Text.empty = /*@__PURE__*/new TextLeaf([""], 0);
+   function textLength(text) {
+       let length = -1;
+       for (let line of text)
+           length += line.length + 1;
+       return length;
+   }
+   function appendText(text, target, from = 0, to = 1e9) {
+       for (let pos = 0, i = 0, first = true; i < text.length && pos <= to; i++) {
+           let line = text[i], end = pos + line.length;
+           if (end >= from) {
+               if (end > to)
+                   line = line.slice(0, to - pos);
+               if (pos < from)
+                   line = line.slice(from - pos);
+               if (first) {
+                   target[target.length - 1] += line;
+                   first = false;
+               }
+               else
+                   target.push(line);
+           }
+           pos = end + 1;
+       }
+       return target;
+   }
+   function sliceText(text, from, to) {
+       return appendText(text, [""], from, to);
+   }
+   class RawTextCursor {
+       constructor(text, dir = 1) {
+           this.dir = dir;
+           this.done = false;
+           this.lineBreak = false;
+           this.value = "";
+           this.nodes = [text];
+           this.offsets = [dir > 0 ? 1 : (text instanceof TextLeaf ? text.text.length : text.children.length) << 1];
+       }
+       nextInner(skip, dir) {
+           this.done = this.lineBreak = false;
+           for (;;) {
+               let last = this.nodes.length - 1;
+               let top = this.nodes[last], offsetValue = this.offsets[last], offset = offsetValue >> 1;
+               let size = top instanceof TextLeaf ? top.text.length : top.children.length;
+               if (offset == (dir > 0 ? size : 0)) {
+                   if (last == 0) {
+                       this.done = true;
+                       this.value = "";
+                       return this;
+                   }
+                   if (dir > 0)
+                       this.offsets[last - 1]++;
+                   this.nodes.pop();
+                   this.offsets.pop();
+               }
+               else if ((offsetValue & 1) == (dir > 0 ? 0 : 1)) {
+                   this.offsets[last] += dir;
+                   if (skip == 0) {
+                       this.lineBreak = true;
+                       this.value = "\n";
+                       return this;
+                   }
+                   skip--;
+               }
+               else if (top instanceof TextLeaf) {
+                   // Move to the next string
+                   let next = top.text[offset + (dir < 0 ? -1 : 0)];
+                   this.offsets[last] += dir;
+                   if (next.length > Math.max(0, skip)) {
+                       this.value = skip == 0 ? next : dir > 0 ? next.slice(skip) : next.slice(0, next.length - skip);
+                       return this;
+                   }
+                   skip -= next.length;
+               }
+               else {
+                   let next = top.children[offset + (dir < 0 ? -1 : 0)];
+                   if (skip > next.length) {
+                       skip -= next.length;
+                       this.offsets[last] += dir;
+                   }
+                   else {
+                       if (dir < 0)
+                           this.offsets[last]--;
+                       this.nodes.push(next);
+                       this.offsets.push(dir > 0 ? 1 : (next instanceof TextLeaf ? next.text.length : next.children.length) << 1);
+                   }
+               }
+           }
+       }
+       next(skip = 0) {
+           if (skip < 0) {
+               this.nextInner(-skip, (-this.dir));
+               skip = this.value.length;
+           }
+           return this.nextInner(skip, this.dir);
+       }
+   }
+   class PartialTextCursor {
+       constructor(text, start, end) {
+           this.value = "";
+           this.done = false;
+           this.cursor = new RawTextCursor(text, start > end ? -1 : 1);
+           this.pos = start > end ? text.length : 0;
+           this.from = Math.min(start, end);
+           this.to = Math.max(start, end);
+       }
+       nextInner(skip, dir) {
+           if (dir < 0 ? this.pos <= this.from : this.pos >= this.to) {
+               this.value = "";
+               this.done = true;
+               return this;
+           }
+           skip += Math.max(0, dir < 0 ? this.pos - this.to : this.from - this.pos);
+           let limit = dir < 0 ? this.pos - this.from : this.to - this.pos;
+           if (skip > limit)
+               skip = limit;
+           limit -= skip;
+           let { value } = this.cursor.next(skip);
+           this.pos += (value.length + skip) * dir;
+           this.value = value.length <= limit ? value : dir < 0 ? value.slice(value.length - limit) : value.slice(0, limit);
+           this.done = !this.value;
+           return this;
+       }
+       next(skip = 0) {
+           if (skip < 0)
+               skip = Math.max(skip, this.from - this.pos);
+           else if (skip > 0)
+               skip = Math.min(skip, this.to - this.pos);
+           return this.nextInner(skip, this.cursor.dir);
+       }
+       get lineBreak() { return this.cursor.lineBreak && this.value != ""; }
+   }
+   class LineCursor {
+       constructor(inner) {
+           this.inner = inner;
+           this.afterBreak = true;
+           this.value = "";
+           this.done = false;
+       }
+       next(skip = 0) {
+           let { done, lineBreak, value } = this.inner.next(skip);
+           if (done) {
+               this.done = true;
+               this.value = "";
+           }
+           else if (lineBreak) {
+               if (this.afterBreak) {
+                   this.value = "";
+               }
+               else {
+                   this.afterBreak = true;
+                   this.next();
+               }
+           }
+           else {
+               this.value = value;
+               this.afterBreak = false;
+           }
+           return this;
+       }
+       get lineBreak() { return false; }
+   }
+   if (typeof Symbol != "undefined") {
+       Text.prototype[Symbol.iterator] = function () { return this.iter(); };
+       RawTextCursor.prototype[Symbol.iterator] = PartialTextCursor.prototype[Symbol.iterator] =
+           LineCursor.prototype[Symbol.iterator] = function () { return this; };
+   }
+   /**
+   This type describes a line in the document. It is created
+   on-demand when lines are [queried](https://codemirror.net/6/docs/ref/#text.Text.lineAt).
+   */
+   class Line {
+       /**
+       @internal
+       */
+       constructor(
+       /**
+       The position of the start of the line.
+       */
+       from, 
+       /**
+       The position at the end of the line (_before_ the line break,
+       or at the end of document for the last line).
+       */
+       to, 
+       /**
+       This line's line number (1-based).
+       */
+       number, 
+       /**
+       The line's content.
+       */
+       text) {
+           this.from = from;
+           this.to = to;
+           this.number = number;
+           this.text = text;
+       }
+       /**
+       The length of the line (not including any line break after it).
+       */
+       get length() { return this.to - this.from; }
+   }
+
+   // From https://gist.github.com/msteen/e4828fbf25d6efef73576fc43ac479d2
+   // MIT License
+   // 
+   // Copyright (c) 2021 Matthijs Steen
+   // 
+   // Permission is hereby granted, free of charge, to any person obtaining a copy
+   // of this software and associated documentation files (the "Software"), to deal
+   // in the Software without restriction, including without limitation the rights
+   // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+   // copies of the Software, and to permit persons to whom the Software is
+   // furnished to do so, subject to the following conditions:
+   // 
+   // The above copyright notice and this permission notice shall be included in all
+   // copies or substantial portions of the Software.
+   // 
+   // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+   // AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+   // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+   // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+   // SOFTWARE.
+   var StringInput = /** @class */ (function () {
+       function StringInput(input) {
+           this.input = input;
+           this.lineChunks = false;
+       }
+       Object.defineProperty(StringInput.prototype, "length", {
+           get: function () {
+               return this.input.length;
+           },
+           enumerable: false,
+           configurable: true
+       });
+       StringInput.prototype.chunk = function (from) {
+           return this.input.slice(from);
+       };
+       StringInput.prototype.read = function (from, to) {
+           return this.input.slice(from, to);
+       };
+       return StringInput;
+   }());
+   function cursorNode(_a, isLeaf) {
+       var type = _a.type, from = _a.from, to = _a.to;
+       if (isLeaf === void 0) { isLeaf = false; }
+       return { type: type, from: from, to: to, isLeaf: isLeaf };
+   }
+   function traverseTree(cursor, _a) {
+       var _b = _a.from, from = _b === void 0 ? -Infinity : _b, _c = _a.to, to = _c === void 0 ? Infinity : _c, _d = _a.includeParents, includeParents = _d === void 0 ? false : _d, beforeEnter = _a.beforeEnter, onEnter = _a.onEnter, onLeave = _a.onLeave;
+       if (!(cursor instanceof TreeCursor))
+           cursor = cursor instanceof Tree ? cursor.cursor() : cursor.cursor;
+       for (;;) {
+           var node = cursorNode(cursor);
+           var leave = false;
+           if (node.from <= to && node.to >= from) {
+               var enter = !node.type.isAnonymous && (includeParents || (node.from >= from && node.to <= to));
+               if (enter && beforeEnter)
+                   beforeEnter(cursor);
+               node.isLeaf = !cursor.firstChild();
+               if (enter) {
+                   leave = true;
+                   if (onEnter(node) === false)
+                       return;
+               }
+               if (!node.isLeaf)
+                   continue;
+           }
+           for (;;) {
+               node = cursorNode(cursor, node.isLeaf);
+               if (leave && onLeave)
+                   if (onLeave(node) === false)
+                       return;
+               leave = cursor.type.isAnonymous;
+               node.isLeaf = false;
+               if (cursor.nextSibling())
+                   break;
+               if (!cursor.parent())
+                   return;
+               leave = true;
+           }
+       }
+   }
+   function isChildOf(child, parent) {
+       return (child.from >= parent.from && child.from <= parent.to && child.to <= parent.to && child.to >= parent.from);
+   }
+   function validatorTraversal(input, _a) {
+       var _b = _a === void 0 ? {} : _a, _c = _b.fullMatch, fullMatch = _c === void 0 ? true : _c;
+       if (typeof input === "string")
+           input = new StringInput(input);
+       var state = {
+           valid: true,
+           parentNodes: [],
+           lastLeafTo: 0,
+       };
+       return {
+           state: state,
+           traversal: {
+               onEnter: function (node) {
+                   state.valid = true;
+                   if (!node.isLeaf)
+                       state.parentNodes.unshift(node);
+                   if (node.from > node.to || node.from < state.lastLeafTo) {
+                       state.valid = false;
+                   }
+                   else if (node.isLeaf) {
+                       if (state.parentNodes.length && !isChildOf(node, state.parentNodes[0]))
+                           state.valid = false;
+                       state.lastLeafTo = node.to;
+                   }
+                   else {
+                       if (state.parentNodes.length) {
+                           if (!isChildOf(node, state.parentNodes[0]))
+                               state.valid = false;
+                       }
+                       else if (fullMatch && (node.from !== 0 || node.to !== input.length)) {
+                           state.valid = false;
+                       }
+                   }
+               },
+               onLeave: function (node) {
+                   if (!node.isLeaf)
+                       state.parentNodes.shift();
+               },
+           },
+       };
+   }
+   var Color;
+   (function (Color) {
+       Color[Color["Red"] = 31] = "Red";
+       Color[Color["Green"] = 32] = "Green";
+       Color[Color["Yellow"] = 33] = "Yellow";
+   })(Color || (Color = {}));
+   function colorize(value, color) {
+       //   Disabled colors for Firefox
+       //   https://bugzilla.mozilla.org/show_bug.cgi?id=1720116
+       //   return "\u001b[" + color + "m" + String(value) + "\u001b[39m"
+       return String(value);
+   }
+   function printTree(cursor, input, _a) {
+       var _b = _a === void 0 ? {} : _a, from = _b.from, to = _b.to, _c = _b.start, start = _c === void 0 ? 0 : _c, includeParents = _b.includeParents;
+       var inp = typeof input === "string" ? new StringInput(input) : input;
+       var text = Text.of(inp.read(0, inp.length).split("\n"));
+       var state = {
+           output: "",
+           prefixes: [],
+           hasNextSibling: false,
+       };
+       var validator = validatorTraversal(inp);
+       traverseTree(cursor, {
+           from: from,
+           to: to,
+           includeParents: includeParents,
+           beforeEnter: function (cursor) {
+               state.hasNextSibling = cursor.nextSibling() && cursor.prevSibling();
+           },
+           onEnter: function (node) {
+               validator.traversal.onEnter(node);
+               var isTop = state.output === "";
+               var hasPrefix = !isTop || node.from > 0;
+               if (hasPrefix) {
+                   state.output += (!isTop ? "\n" : "") + state.prefixes.join("");
+                   if (state.hasNextSibling) {
+                       state.output += " ├─ ";
+                       state.prefixes.push(" │  ");
+                   }
+                   else {
+                       state.output += " └─ ";
+                       state.prefixes.push("    ");
+                   }
+               }
+               var hasRange = node.from !== node.to;
+               state.output +=
+                   (node.type.isError || !validator.state.valid ? colorize(node.type.name, Color.Red) : node.type.name) +
+                       " " +
+                       (hasRange
+                           ? "[" +
+                               colorize(locAt(text, start + node.from), Color.Yellow) +
+                               ".." +
+                               colorize(locAt(text, start + node.to), Color.Yellow) +
+                               "]"
+                           : colorize(locAt(text, start + node.from), Color.Yellow));
+               if (hasRange && node.isLeaf) {
+                   state.output += ": " + colorize(JSON.stringify(inp.read(node.from, node.to)), Color.Green);
+               }
+           },
+           onLeave: function (node) {
+               validator.traversal.onLeave(node);
+               state.prefixes.pop();
+           },
+       });
+       return state.output;
+   }
+   function locAt(text, pos) {
+       var line = text.lineAt(pos);
+       return line.number + ":" + (pos - line.from);
+   }
+   function logTree(tree, input, options) {
+       console.log(printTree(tree, input, options));
+   }
 
    /**
    A parse stack. These are used internally by the parser to track
@@ -20726,12 +21485,12 @@
        return new LanguageSupport(lostLanguage, [lostCompletion]);
    }
 
-   console.log(parser.parse(
-       loadFromLocalStorage()
-   ).toString());
+   let startText = loadFromLocalStorage();
+
+   logTree(parser.parse(startText), startText);
 
    let state = EditorState.create({
-       doc: loadFromLocalStorage(),
+       doc: startText,
        extensions: [
            keymap.of(defaultKeymap),
            lineNumbers(),
