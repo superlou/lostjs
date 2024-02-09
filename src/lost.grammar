@@ -1,26 +1,24 @@
-@top Program { expression* }
+@precedence { tb, le }
 
-@skip { space | LineComment }
+@top Document { (TextBlock | Section1)* }
 
-expression {
-  Identifier |
-  String |
-  Boolean |
-  Application { "(" expression* ")" }
+TextBlock {
+  text lineEnd
+}
+
+Section1 {
+  Heading1 (!tb TextBlock | lineEnd)
+}
+
+Heading1 {
+  "# " HeadingText lineEnd
+}
+
+HeadingText {
+  text
 }
 
 @tokens {
-  Identifier { $[a-zA-Z_\-0-9]+ }
-
-  String { '"' (!["\\] | "\\" _)* '"' }
-
-  Boolean { "#t" | "#f" }
-
-  LineComment { ";" ![\n]* }
-
-  space { $[ \t\n\r]+ }
-
-  "(" ")"
+  text { $[a-zA-Z0-9;!?. ]+ }
+  lineEnd { "\n" | @eof }
 }
-
-@detectDelim

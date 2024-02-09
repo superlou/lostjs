@@ -1,5 +1,5 @@
 import { parser } from "../build/grammar";
-import { foldNodeProp, foldInside, indentNodeProp } from "@codemirror/language";
+import { foldNodeProp, indentNodeProp } from "@codemirror/language";
 import { styleTags, tags as t } from "@lezer/highlight";
 import { LRLanguage, LanguageSupport } from "@codemirror/language";
 import { completeFromList } from "@codemirror/autocomplete";
@@ -17,7 +17,7 @@ let parserWithMetadata = parser.configure({
             Application: context => context.column(context.node.from) + context.unit
         }),
         foldNodeProp.add({
-            Application: foldInside
+            Heading(tree) { return {from: tree.firstChild.to, to: tree.to} }
         }),
     ]
 });
